@@ -1,6 +1,8 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import openRouterService from '../services/openRouterService';
+import speechService from '../services/speechService';
 
-// This is a placeholder for the actual API integration
+// Fallback function when API is unavailable
 const mockSendMessage = async (message: string) => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -21,16 +23,11 @@ const mockSendMessage = async (message: string) => {
   }
 };
 
-// This is a placeholder for the actual voice API integration
-const mockSpeakText = async (text: string) => {
-  console.log('Speaking:', text);
-  // In a real implementation, this would use the Hume AI API
-  return true;
-};
-
 interface CompanionContextType {
   state: 'idle' | 'listening' | 'talking';
   messages: Message[];
+  selectedVoice: string;
+  setSelectedVoice: (voice: string) => void;
   startVoiceInput: () => void;
   stopVoiceInput: () => void;
   sendTextMessage: (message: string) => Promise<string>;
@@ -46,6 +43,8 @@ export interface Message {
 export const CompanionContext = createContext<CompanionContextType>({
   state: 'idle',
   messages: [],
+  selectedVoice: 'rugged-male',
+  setSelectedVoice: () => {},
   startVoiceInput: () => {},
   stopVoiceInput: () => {},
   sendTextMessage: async () => '',
@@ -55,10 +54,10 @@ export const CompanionContext = createContext<CompanionContextType>({
 interface CompanionProviderProps {
   children: ReactNode;
 }
-
 export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }) => {
   const [state, setState] = useState<'idle' | 'listening' | 'talking'>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<string>('rugged-male');
   
   // Handle companion state changes
   useEffect(() => {
@@ -73,13 +72,44 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
   const startVoiceInput = useCallback(() => {
     setState('listening');
     
-    // In a real implementation, this would use the Web Speech API or Hume AI
-    // For now, we'll simulate voice input with a timeout
-    setTimeout(() => {
-      const simulatedVoiceInput = "Hello, can you help me find water?";
-      sendTextMessage(simulatedVoiceInput);
-    }, 2000);
-  }, []);
+    // Use Web Speech API for voice recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Voice input:', transcript);
+        sendTextMessage(transcript);
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setState('idle');
+      };
+      
+      recognition.onend = () => {
+        // Only set to idle if we're still in listening state
+        // (prevents overriding the 'talking' state if we got a result)
+        if (state === 'listening') {
+          setState('idle');
+        }
+      };
+      
+      recognition.start();
+    } else {
+      console.warn('Speech recognition not supported in this browser');
+      // Fallback to simulated input for browsers without speech recognition
+      setTimeout(() => {
+        const simulatedVoiceInput = "Hello, can you help me find water?";
+        sendTextMessage(simulatedVoiceInput);
+      }, 2000);
+    }
+  }, [state]);
   
   // Stop listening for voice input
   const stopVoiceInput = useCallback(() => {
@@ -99,7 +129,34 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     
     // Get companion response
     setState('talking');
-    const response = await mockSendMessage(message);
+    
+    // Try to use OpenRouter API, fall back to mock if unavailable
+    let response: string;
+    try {
+      // Check if API key is available
+      const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
+      if (!apiKey || apiKey === 'placeholder_openrouter_key') {
+        throw new Error('OpenRouter API key not found');
+      }
+      
+      // Create conversation history for context
+      const conversationHistory = messages.slice(-5).map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      // Add user's new message
+      conversationHistory.push({
+        role: 'user',
+        content: message
+      });
+      
+      // Send to OpenRouter API
+      response = await openRouterService.sendMessage(conversationHistory);
+    } catch (error) {
+      console.warn('Error using OpenRouter API, falling back to mock responses:', error);
+      response = await mockSendMessage(message);
+    }
     
     // Add companion message
     const companionMessage: Message = {
@@ -109,9 +166,22 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     };
     
     setMessages(prev => [...prev, companionMessage]);
+    // Determine emotion based on message content
+    let emotion: string = 'neutral';
+    if (response.toLowerCase().includes('danger') || response.toLowerCase().includes('threat') ||
+        response.toLowerCase().includes('caution') || response.toLowerCase().includes('warning')) {
+      emotion = 'fearful';
+    } else if (response.toLowerCase().includes('good') || response.toLowerCase().includes('excellent') ||
+               response.toLowerCase().includes('perfect') || response.toLowerCase().includes('well done')) {
+      emotion = 'happy';
+    } else if (response.toLowerCase().includes('sorry') || response.toLowerCase().includes('unfortunate') ||
+               response.toLowerCase().includes('difficult')) {
+      emotion = 'sad';
+    }
     
-    // Speak the response
-    await mockSpeakText(response);
+    // Speak the response with appropriate emotion
+    await speechService.speakText(response, emotion as any, selectedVoice as any);
+    setState('idle');
     setState('idle');
     
     return response;
@@ -146,7 +216,31 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     
     // Get companion response
     setState('talking');
-    const response = await mockSendMessage(message);
+    
+    // Try to use OpenRouter API, fall back to mock if unavailable
+    let response: string;
+    try {
+      // Check if API key is available
+      const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
+      if (!apiKey || apiKey === 'placeholder_openrouter_key') {
+        throw new Error('OpenRouter API key not found');
+      }
+      
+      // Create a system message explaining the event
+      const systemMessage = {
+        role: 'system' as const,
+        content: `The user has performed an action in the survival app: ${eventType.replace('_', ' ')} - ${eventData}. Respond as a helpful survival companion with relevant advice about this action.`
+      };
+      
+      // Send to OpenRouter API with just the system message and event
+      response = await openRouterService.sendMessage([
+        systemMessage,
+        { role: 'user' as const, content: message }
+      ]);
+    } catch (error) {
+      console.warn('Error using OpenRouter API, falling back to mock responses:', error);
+      response = await mockSendMessage(message);
+    }
     
     // Add companion message
     const companionMessage: Message = {
@@ -156,9 +250,18 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     };
     
     setMessages(prev => [...prev, companionMessage]);
+    // Determine emotion based on message content
+    let emotion: string = 'neutral';
+    if (message.toLowerCase().includes('danger') || message.toLowerCase().includes('threat')) {
+      emotion = 'fearful';
+    } else if (message.toLowerCase().includes('food') || message.toLowerCase().includes('water')) {
+      emotion = 'neutral';
+    } else if (message.toLowerCase().includes('trade') || message.toLowerCase().includes('barter')) {
+      emotion = 'happy';
+    }
     
-    // Speak the response
-    await mockSpeakText(response);
+    // Speak the response with appropriate emotion
+    await speechService.speakText(response, emotion as any, selectedVoice as any);
     setState('idle');
   }, []);
   
@@ -166,6 +269,8 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     <CompanionContext.Provider value={{
       state,
       messages,
+      selectedVoice,
+      setSelectedVoice,
       startVoiceInput,
       stopVoiceInput,
       sendTextMessage,

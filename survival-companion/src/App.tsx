@@ -6,7 +6,7 @@ import CompanionTab from './components/Companion/CompanionTab';
 import InventoryTab from './components/Inventory/InventoryTab';
 import BarteringTab from './components/Bartering/BarteringTab';
 import TradeLogTab from './components/TradeLog/TradeLogTab';
-import MapTab from './components/Map/MapTab';
+import EnhancedMapTab from './components/Map/EnhancedMapTab';
 
 // Context Providers
 import { CompanionProvider } from './contexts/CompanionContext';
@@ -29,7 +29,7 @@ function App() {
       case 'tradeLog':
         return <TradeLogTab />;
       case 'map':
-        return <MapTab />;
+        return <EnhancedMapTab />;
       default:
         return <CompanionTab />;
     }

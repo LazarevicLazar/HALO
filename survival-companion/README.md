@@ -3,11 +3,12 @@
 A survival-oriented AI companion web application that guides users through a harsh, desolate world. This application features an interactive AI companion, inventory management, bartering system, trade log, and interactive map.
 
 ## Features
-
-- **AI Companion**: A survival guide that teaches skills via text and voice, with animated avatar states (talk, idle, listen).
+- **AI Companion**: A survival guide that teaches skills via text and voice, with animated avatar states (talk, idle, listen). Features emotion detection and contextual responses powered by OpenRouter and Hume AI.
+- **Voice Interaction**: Continuous speech recognition with emotion detection, allowing for natural conversations with your AI companion. Multiple voice options available (Rugged Male, Calm Female, Energetic Male, Soothing Female).
 - **Inventory Management**: Track and manage your survival items with categories and quantities.
 - **Bartering System**: Trade items with NPCs, with companion advice on deals.
 - **Trade Log**: History of all trades made, with export functionality.
+- **Enhanced Interactive Map**: Mark locations, resources, and dangers on a post-apocalyptic styled map. Features custom markers, area definition, and companion advice about locations.
 - **Interactive Map**: Mark locations, resources, and dangers on a post-apocalyptic styled map.
 
 ## Tech Stack
@@ -81,6 +82,11 @@ The application uses OpenRouter for the AI conversation logic. To integrate with
 2. Get your API key
 3. Add it to your `.env` file
 
+Features implemented with OpenRouter:
+- Contextual AI responses based on conversation history
+- System prompts for different interaction scenarios
+- Fallback mechanisms when API is unavailable
+
 ### Hume AI API
 
 For voice and emotional interaction, the application uses Hume AI. To integrate with your own Hume AI API key:
@@ -88,6 +94,13 @@ For voice and emotional interaction, the application uses Hume AI. To integrate 
 1. Sign up at [Hume AI](https://hume.ai/)
 2. Get your API key
 3. Add it to your `.env` file
+
+Features implemented with Hume AI:
+- Text-to-speech with emotional inflection
+- Speech-to-text for voice commands
+- Emotion detection in user's voice
+- Adaptive responses based on detected emotions
+- Multiple voice options with different characteristics
 
 ## Available Scripts
 

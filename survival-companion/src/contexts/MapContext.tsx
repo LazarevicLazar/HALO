@@ -25,7 +25,11 @@ interface MapProviderProps {
 }
 
 export const MapProvider: React.FC<MapProviderProps> = ({ children }) => {
-  const [markers, setMarkers] = useState<MapMarker[]>(mockMapMarkers);
+  // Load markers from localStorage if available, otherwise use mock data
+  const [markers, setMarkers] = useState<MapMarker[]>(() => {
+    const savedMarkers = localStorage.getItem('survival-map-markers');
+    return savedMarkers ? JSON.parse(savedMarkers) : mockMapMarkers;
+  });
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
   
   const { triggerCompanionResponse } = useContext(CompanionContext);

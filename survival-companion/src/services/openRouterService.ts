@@ -1,124 +1,110 @@
 /**
- * OpenRouter API Service
+ * OpenRouter Service
  * 
  * This service handles communication with the OpenRouter API for AI conversation.
- * It provides methods for sending messages and receiving responses.
+ * OpenRouter provides access to various large language models.
  */
 
-// Get API key from environment variables
-const API_KEY = process.env.REACT_APP_OPENROUTER_API_KEY;
-const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+import apiConfig from '../config/apiConfig';
 
-// Define message interface
-export interface Message {
-  role: 'user' | 'assistant' | 'system';
+// Message type for OpenRouter API
+interface Message {
+  role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-// Define response interface
-export interface OpenRouterResponse {
-  id: string;
-  choices: {
-    message: Message;
-    finish_reason: string;
-    index: number;
-  }[];
-  created: number;
-  model: string;
-  object: string;
-}
-
-/**
- * Send a message to the OpenRouter API and get a response
- * 
- * @param messages Array of messages in the conversation
- * @param systemPrompt Optional system prompt to guide the AI
- * @returns Promise with the AI's response
- */
-export const sendMessage = async (
-  messages: Message[],
-  systemPrompt: string = 'You are a survival guide in a post-apocalyptic world. Provide practical advice for surviving in harsh conditions. Be direct, resourceful, and slightly hopeful.'
-): Promise<string> => {
-  try {
-    // Add system message if not already present
-    const hasSystemMessage = messages.some(msg => msg.role === 'system');
-    const messagesWithSystem = hasSystemMessage 
-      ? messages 
-      : [{ role: 'system', content: systemPrompt }, ...messages];
-    
-    // Make API request
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Post-Apocalyptic AI Companion'
-      },
-      body: JSON.stringify({
-        messages: messagesWithSystem,
-        model: 'anthropic/claude-3-opus',
-        temperature: 0.7,
-        max_tokens: 1000
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+class OpenRouterService {
+  private apiKey: string;
+  private baseUrl: string;
+  private model: string;
+  
+  constructor() {
+    this.apiKey = process.env.REACT_APP_OPENROUTER_API_KEY || '';
+    this.baseUrl = apiConfig.openRouter.baseUrl;
+    this.model = apiConfig.openRouter.defaultModel;
+  }
+  
+  /**
+   * Check if the API is available
+   * 
+   * @returns Promise<boolean> True if API is available
+   */
+  public async checkApiAvailability(): Promise<boolean> {
+    if (!this.apiKey || this.apiKey === 'placeholder_openrouter_key') {
+      console.warn('OpenRouter API key not found');
+      return false;
     }
     
-    const data: OpenRouterResponse = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('Error sending message to OpenRouter:', error);
-    
-    // Fallback responses for when the API is unavailable
-    const fallbackResponses = [
-      "I'm having trouble connecting to my knowledge base. Stay vigilant and conserve your resources until we can communicate properly.",
-      "Communication systems are down. Remember the basics: find shelter, secure water, and stay hidden from potential threats.",
-      "We're experiencing interference. In the meantime, focus on your immediate surroundings and assess your inventory.",
-      "My systems are temporarily offline. Trust your instincts and remember: water, shelter, food, in that order of priority.",
-      "I can't access my full capabilities right now. Stay where you are if it's safe, and avoid unnecessary risks until we reconnect."
-    ];
-    
-    // Return a random fallback response
-    return fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+    try {
+      const response = await fetch(`${this.baseUrl}/models`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.error('Error checking OpenRouter API availability:', error);
+      return false;
+    }
   }
-};
-
-/**
- * Check if the OpenRouter API is available
- * 
- * @returns Promise<boolean> True if the API is available
- */
-export const checkApiAvailability = async (): Promise<boolean> => {
-  try {
-    if (!API_KEY) return false;
+  
+  /**
+   * Send a message to the OpenRouter API
+   * 
+   * @param messages Array of messages in the conversation
+   * @returns Promise<string> The AI's response
+   */
+  public async sendMessage(messages: Message[]): Promise<string> {
+    if (!this.apiKey || this.apiKey === 'placeholder_openrouter_key') {
+      throw new Error('OpenRouter API key not found');
+    }
     
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Post-Apocalyptic AI Companion'
-      },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: 'Hello' }],
-        model: 'anthropic/claude-3-opus',
-        max_tokens: 10
-      })
-    });
+    // Add system message if not present
+    if (!messages.some(msg => msg.role === 'system')) {
+      messages.unshift({
+        role: 'system',
+        content: `You are a post-apocalyptic AI companion helping the user survive in a harsh world. 
+        Your personality is resourceful, gritty, and slightly hopeful - like a battle-worn friend.
+        Provide practical survival advice, respond to the user's questions, and help them navigate
+        this dangerous world. Keep responses concise and focused on survival.`
+      });
+    }
     
-    return response.ok;
-  } catch (error) {
-    console.error('Error checking API availability:', error);
-    return false;
+    try {
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Survival Companion'
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 500
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`OpenRouter API error: ${errorData.error?.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error('Error sending message to OpenRouter:', error);
+      throw error;
+    }
   }
-};
+}
 
-export default {
-  sendMessage,
-  checkApiAvailability
-};
+// Create singleton instance
+const openRouterService = new OpenRouterService();
+
+export default openRouterService;
