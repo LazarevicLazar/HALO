@@ -1,59 +1,8 @@
-import React, { useState } from 'react';
-
-interface TradeEntry {
-  id: string;
-  date: string;
-  partner: string;
-  givenItems: { name: string; quantity: number }[];
-  receivedItems: { name: string; quantity: number }[];
-  notes?: string;
-}
-
-// Mock trade log data
-const mockTradeLog: TradeEntry[] = [
-  {
-    id: '1',
-    date: '2025-04-10T14:30:00Z',
-    partner: 'Doc Wilson',
-    givenItems: [
-      { name: 'Canned Beans', quantity: 2 },
-      { name: 'Water Bottle', quantity: 1 }
-    ],
-    receivedItems: [
-      { name: 'Bandages', quantity: 5 }
-    ],
-    notes: 'Fair trade, Doc seemed pleased with the food.'
-  },
-  {
-    id: '2',
-    date: '2025-04-08T10:15:00Z',
-    partner: 'Hunter Mike',
-    givenItems: [
-      { name: 'Multi-tool', quantity: 1 }
-    ],
-    receivedItems: [
-      { name: 'Shotgun Shells', quantity: 12 }
-    ],
-    notes: 'Mike really needed a new tool. Got a good deal on ammo.'
-  },
-  {
-    id: '3',
-    date: '2025-04-05T16:45:00Z',
-    partner: 'Farmer Sarah',
-    givenItems: [
-      { name: 'Radio', quantity: 1 }
-    ],
-    receivedItems: [
-      { name: 'Fresh Vegetables', quantity: 10 },
-      { name: 'Dried Meat', quantity: 3 }
-    ],
-    notes: 'Sarah was grateful for the radio. Generous with her food supplies.'
-  }
-];
+import React, { useContext } from 'react';
+import { TradeLogContext, TradeEntry } from '../../contexts/TradeLogContext';
 
 const TradeLogTab: React.FC = () => {
-  const [tradeLog, setTradeLog] = useState<TradeEntry[]>(mockTradeLog);
-  const [selectedEntry, setSelectedEntry] = useState<TradeEntry | null>(null);
+  const { tradeLog, selectedEntry, selectEntry, exportTradeLog, deleteTradeEntry, updateTradeEntry } = useContext(TradeLogContext);
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -68,7 +17,17 @@ const TradeLogTab: React.FC = () => {
         <div style={{ flex: '1' }}>
           <div className="flex justify-between align-center mb-1">
             <h3>Recent Trades</h3>
-            <button className="button">Export Log</button>
+            <button className="button" onClick={() => {
+              const csvContent = exportTradeLog();
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.setAttribute('download', 'trade-log.csv');
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}>Export Log</button>
           </div>
           
           <div className="card" style={{ backgroundColor: 'var(--primary-color)' }}>
@@ -80,7 +39,7 @@ const TradeLogTab: React.FC = () => {
                   cursor: 'pointer',
                   borderLeft: selectedEntry?.id === entry.id ? '4px solid var(--accent-color)' : 'none'
                 }}
-                onClick={() => setSelectedEntry(entry)}
+                onClick={() => selectEntry(entry)}
               >
                 <div className="flex justify-between">
                   <h4 style={{ margin: '0' }}>Trade with {entry.partner}</h4>
@@ -142,8 +101,21 @@ const TradeLogTab: React.FC = () => {
               )}
               
               <div className="flex justify-between mt-1">
-                <button className="button">Edit</button>
-                <button className="button" style={{ backgroundColor: 'var(--danger-color)' }}>Delete</button>
+                <button className="button" onClick={() => {
+                  const notes = prompt('Edit notes:', selectedEntry.notes || '');
+                  if (notes !== null) {
+                    updateTradeEntry(selectedEntry.id, { notes });
+                  }
+                }}>Edit</button>
+                <button
+                  className="button"
+                  style={{ backgroundColor: 'var(--danger-color)' }}
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this trade entry?')) {
+                      deleteTradeEntry(selectedEntry.id);
+                    }
+                  }}
+                >Delete</button>
               </div>
             </div>
           </div>

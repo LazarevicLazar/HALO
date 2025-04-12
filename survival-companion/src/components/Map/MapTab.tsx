@@ -1,8 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useContext } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import mockMapMarkers, { MapMarker } from '../../data/mockMapMarkers';
+import 'leaflet-draw';
+import 'leaflet-draw/dist/leaflet.draw.css';
+import { MapMarker } from '../../data/mockMapMarkers';
 import apiConfig from '../../config/apiConfig';
+import { MapContext } from '../../contexts/MapContext';
+import { CompanionContext } from '../../contexts/CompanionContext';
 
 // Fix for Leaflet's icon issues with webpack
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -58,11 +62,13 @@ const markerIcons = {
 };
 
 const MapTab: React.FC = () => {
-  const [markers, setMarkers] = useState<MapMarker[]>(mockMapMarkers);
-  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+  const { markers, selectedMarker, addMarker, updateMarker, removeMarker, selectMarker } = useContext(MapContext);
+  const { triggerCompanionResponse } = useContext(CompanionContext);
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<L.Map | null>(null);
+  const drawnItems = useRef<L.FeatureGroup | null>(null);
   
+  // Initialize map and draw controls
   useEffect(() => {
     if (mapRef.current && !leafletMap.current) {
       // Initialize map
@@ -86,6 +92,85 @@ const MapTab: React.FC = () => {
         }
       `;
       document.head.appendChild(style);
+      
+      // Initialize draw controls
+      drawnItems.current = new L.FeatureGroup();
+      leafletMap.current.addLayer(drawnItems.current);
+      
+      // Initialize Leaflet.Draw control
+      const DrawControl = (L.Control as any).Draw;
+      const drawControl = new DrawControl({
+        draw: {
+          polyline: false,
+          circle: false,
+          circlemarker: false,
+          polygon: {
+            allowIntersection: false,
+            drawError: {
+              color: '#e1e100',
+              message: '<strong>Warning:</strong> shape edges cannot cross!'
+            },
+            shapeOptions: {
+              color: '#ff7800'
+            }
+          },
+          rectangle: {
+            shapeOptions: {
+              color: '#ff7800'
+            }
+          },
+          marker: {
+            icon: DefaultIcon
+          }
+        },
+        edit: {
+          featureGroup: drawnItems.current
+        }
+      });
+      
+      leafletMap.current.addControl(drawControl);
+      
+      // Handle draw events
+      leafletMap.current.on(L.Draw.Event.CREATED, (event) => {
+        const layer = event.layer;
+        drawnItems.current?.addLayer(layer);
+        
+        // Prompt for location name and description
+        const locationName = prompt('Name this location:');
+        if (locationName) {
+          const locationDesc = prompt('Add a description (optional):');
+          const markerType = prompt('Type (home, resource, danger, ally, cache, other):') || 'other';
+          
+          const newMarker: Omit<MapMarker, 'id' | 'createdAt'> = {
+            name: locationName,
+            description: locationDesc || '',
+            type: (event as any).layerType,
+            coordinates: (event as any).layerType === 'marker'
+              ? [layer.getLatLng().lat, layer.getLatLng().lng] as [number, number]
+              : layer.getLatLngs() as any,
+            markerType: markerType as any
+          };
+          
+          const createdMarker = addMarker(newMarker);
+          
+          // Trigger companion response
+          triggerCompanionResponse(`map_marker_added:${locationName}`);
+          
+          // Add popup to the layer
+          layer.bindPopup(`<strong>${locationName}</strong><br>${locationDesc || ''}`);
+        } else {
+          drawnItems.current?.removeLayer(layer);
+        }
+      });
+      
+      // Handle delete events
+      leafletMap.current.on(L.Draw.Event.DELETED, (event) => {
+        const layers = (event as any).layers;
+        layers.eachLayer((layer: any) => {
+          // In a real implementation, we would find and remove the corresponding marker
+          console.log('Layer deleted:', layer);
+        });
+      });
     }
     
     return () => {
@@ -94,9 +179,9 @@ const MapTab: React.FC = () => {
         leafletMap.current = null;
       }
     };
-  }, []);
+  }, [addMarker, triggerCompanionResponse]);
   
-  // Add markers to map
+  // Update markers when they change
   useEffect(() => {
     if (leafletMap.current) {
       // Clear existing markers
@@ -106,7 +191,23 @@ const MapTab: React.FC = () => {
         }
       });
       
-      // Add markers from state
+      // Add base tile layer back if needed
+      let hasBaseLayer = false;
+      leafletMap.current.eachLayer(layer => {
+        if (layer instanceof L.TileLayer) {
+          hasBaseLayer = true;
+        }
+      });
+      
+      if (!hasBaseLayer) {
+        L.tileLayer(apiConfig.openStreetMap.tileUrl, {
+          attribution: apiConfig.openStreetMap.attribution,
+          maxZoom: apiConfig.openStreetMap.maxZoom,
+          className: 'map-tiles'
+        }).addTo(leafletMap.current);
+      }
+      
+      // Add markers from context
       markers.forEach(marker => {
         if (marker.type === 'marker') {
           const coords = marker.coordinates as [number, number];
@@ -117,9 +218,9 @@ const MapTab: React.FC = () => {
           newMarker.bindPopup(`<strong>${marker.name}</strong><br>${marker.description || ''}`);
           
           newMarker.on('click', () => {
-            setSelectedMarker(marker);
+            selectMarker(marker);
           });
-        } else if (marker.type === 'polygon') {
+        } else if (marker.type === 'polygon' || marker.type === 'rectangle') {
           const coords = marker.coordinates as [number, number][];
           const newPolygon = L.polygon(coords, {
             color: marker.markerType === 'danger' ? '#a83232' : '#8b5d33'
@@ -128,23 +229,12 @@ const MapTab: React.FC = () => {
           newPolygon.bindPopup(`<strong>${marker.name}</strong><br>${marker.description || ''}`);
           
           newPolygon.on('click', () => {
-            setSelectedMarker(marker);
-          });
-        } else if (marker.type === 'rectangle') {
-          const coords = marker.coordinates as [number, number][];
-          const newRectangle = L.polygon(coords, {
-            color: marker.markerType === 'danger' ? '#a83232' : '#8b5d33'
-          }).addTo(leafletMap.current!);
-          
-          newRectangle.bindPopup(`<strong>${marker.name}</strong><br>${marker.description || ''}`);
-          
-          newRectangle.on('click', () => {
-            setSelectedMarker(marker);
+            selectMarker(marker);
           });
         }
       });
     }
-  }, [markers, leafletMap.current]);
+  }, [markers, selectMarker, leafletMap]);
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -168,9 +258,51 @@ const MapTab: React.FC = () => {
           ></div>
           
           <div className="flex justify-between mt-1">
-            <button className="button">Add Marker</button>
-            <button className="button">Add Area</button>
-            <button className="button">Find My Location</button>
+            <button
+              className="button"
+              onClick={() => {
+                if (leafletMap.current) {
+                  const Draw = (L as any).Draw;
+                  new Draw.Marker(leafletMap.current).enable();
+                }
+              }}
+            >
+              Add Marker
+            </button>
+            <button
+              className="button"
+              onClick={() => {
+                if (leafletMap.current) {
+                  const Draw = (L as any).Draw;
+                  new Draw.Polygon(leafletMap.current).enable();
+                }
+              }}
+            >
+              Add Area
+            </button>
+            <button
+              className="button"
+              onClick={() => {
+                if (leafletMap.current && 'geolocation' in navigator) {
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      leafletMap.current?.setView(
+                        [position.coords.latitude, position.coords.longitude],
+                        15
+                      );
+                    },
+                    (error) => {
+                      console.error('Error getting location:', error);
+                      alert('Unable to find your location. Please check your browser permissions.');
+                    }
+                  );
+                } else {
+                  alert('Geolocation is not supported by your browser.');
+                }
+              }}
+            >
+              Find My Location
+            </button>
           </div>
         </div>
         
@@ -209,8 +341,32 @@ const MapTab: React.FC = () => {
                 <p><strong>Added:</strong> {formatDate(selectedMarker.createdAt)}</p>
                 
                 <div className="flex justify-between mt-1">
-                  <button className="button">Edit</button>
-                  <button className="button" style={{ backgroundColor: 'var(--danger-color)' }}>Delete</button>
+                  <button
+                    className="button"
+                    onClick={() => {
+                      const newName = prompt('Location name:', selectedMarker.name);
+                      if (newName) {
+                        const newDesc = prompt('Description:', selectedMarker.description || '');
+                        updateMarker(selectedMarker.id, {
+                          name: newName,
+                          description: newDesc || selectedMarker.description
+                        });
+                      }
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="button"
+                    style={{ backgroundColor: 'var(--danger-color)' }}
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete "${selectedMarker.name}"?`)) {
+                        removeMarker(selectedMarker.id);
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
               

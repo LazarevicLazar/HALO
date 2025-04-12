@@ -1,41 +1,24 @@
-import React, { useState } from 'react';
-import mockInventory, { InventoryItem } from '../../data/mockInventory';
-import mockNPCs, { NPC } from '../../data/mockNPCs';
+import React, { useContext } from 'react';
+import { InventoryContext } from '../../contexts/InventoryContext';
+import { BarterContext } from '../../contexts/BarterContext';
+import { InventoryItem } from '../../data/mockInventory';
 
 const BarteringTab: React.FC = () => {
-  const [inventory, setInventory] = useState<InventoryItem[]>(mockInventory);
-  const [npcs, setNpcs] = useState<NPC[]>(mockNPCs);
-  const [selectedNPC, setSelectedNPC] = useState<NPC | null>(null);
-  const [playerOffers, setPlayerOffers] = useState<InventoryItem[]>([]);
-  const [npcOffers, setNpcOffers] = useState<InventoryItem[]>([]);
+  const { inventory } = useContext(InventoryContext);
+  const {
+    npcs,
+    selectedNPC,
+    playerOffers,
+    npcOffers,
+    selectNPC,
+    addToPlayerOffer,
+    removeFromPlayerOffer,
+    addToNPCOffer,
+    removeFromNPCOffer,
+    executeTrade,
+    clearOffers
+  } = useContext(BarterContext);
   
-  const handleSelectNPC = (npc: NPC) => {
-    setSelectedNPC(npc);
-    setNpcOffers([]);
-    setPlayerOffers([]);
-  };
-  
-  const addToPlayerOffer = (item: InventoryItem) => {
-    if (item.quantity > 0) {
-      setPlayerOffers([...playerOffers, { ...item, quantity: 1 }]);
-      // In a real implementation, we would update the inventory quantity
-    }
-  };
-  
-  const addToNPCOffer = (item: InventoryItem) => {
-    if (item.quantity > 0) {
-      setNpcOffers([...npcOffers, { ...item, quantity: 1 }]);
-      // In a real implementation, we would update the NPC inventory quantity
-    }
-  };
-  
-  const executeTrade = () => {
-    // In a real implementation, this would update both inventories
-    // and create a trade log entry
-    alert('Trade completed!');
-    setPlayerOffers([]);
-    setNpcOffers([]);
-  };
 
   return (
     <div className="card">
@@ -50,7 +33,7 @@ const BarteringTab: React.FC = () => {
                 key={npc.id} 
                 className="card" 
                 style={{ cursor: 'pointer' }}
-                onClick={() => handleSelectNPC(npc)}
+                onClick={() => selectNPC(npc)}
               >
                 <h4 className="text-accent">{npc.name}</h4>
                 <p>{npc.description}</p>
@@ -64,7 +47,7 @@ const BarteringTab: React.FC = () => {
         <div>
           <div className="flex justify-between align-center mb-1">
             <h3>Trading with {selectedNPC.name}</h3>
-            <button className="button" onClick={() => setSelectedNPC(null)}>Back to NPC List</button>
+            <button className="button" onClick={() => selectNPC(null)}>Back to NPC List</button>
           </div>
           
           <div className="flex" style={{ gap: '1rem' }}>

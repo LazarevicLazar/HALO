@@ -8,6 +8,13 @@ import BarteringTab from './components/Bartering/BarteringTab';
 import TradeLogTab from './components/TradeLog/TradeLogTab';
 import MapTab from './components/Map/MapTab';
 
+// Context Providers
+import { CompanionProvider } from './contexts/CompanionContext';
+import { InventoryProvider } from './contexts/InventoryContext';
+import { BarterProvider } from './contexts/BarterContext';
+import { TradeLogProvider } from './contexts/TradeLogContext';
+import { MapProvider } from './contexts/MapContext';
+
 function App() {
   const [activeTab, setActiveTab] = useState('companion');
 
@@ -29,10 +36,20 @@ function App() {
   };
 
   return (
-    <Layout>
-      <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
-      {renderTabContent()}
-    </Layout>
+    <CompanionProvider>
+      <InventoryProvider>
+        <BarterProvider>
+          <TradeLogProvider>
+            <MapProvider>
+              <Layout>
+                <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
+                {renderTabContent()}
+              </Layout>
+            </MapProvider>
+          </TradeLogProvider>
+        </BarterProvider>
+      </InventoryProvider>
+    </CompanionProvider>
   );
 }
 
