@@ -1,0 +1,153 @@
+.encyclopedia-container {
+  display: flex;
+  gap: 1rem;
+  height: 70vh;
+  overflow: hidden;
+}
+
+.encyclopedia-categories {
+  flex: 1;
+  overflow-y: auto;
+  background-color: var(--primary-color);
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.encyclopedia-category {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.encyclopedia-category:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.encyclopedia-category.selected {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.category-icon {
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+}
+
+.category-name {
+  font-weight: bold;
+}
+
+.encyclopedia-content {
+  flex: 3;
+  display: flex;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+.encyclopedia-entries {
+  flex: 1;
+  overflow-y: auto;
+  background-color: var(--primary-color);
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.category-description {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entry-item {
+  padding: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.entry-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.entry-item.selected {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.entry-content {
+  flex: 2;
+  overflow-y: auto;
+  background-color: var(--primary-color);
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.entry-content h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--accent-color);
+}
+
+.entry-content h3:not(:first-child) {
+  margin-top: 1.5rem;
+}
+
+.entry-content ul {
+  padding-left: 1.5rem;
+}
+
+.entry-content li {
+  margin-bottom: 0.5rem;
+}
+
+.entry-content strong {
+  color: var(--accent-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .encyclopedia-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .encyclopedia-content {
+    flex-direction: column;
+  }
+
+  .encyclopedia-categories {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    overflow-x: auto;
+  }
+
+  .encyclopedia-category {
+    flex-direction: column;
+    text-align: center;
+    min-width: 80px;
+  }
+}

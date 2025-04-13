@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface NavigationProps {
   activeTab: string;
@@ -9,35 +9,41 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
   return (
     <nav className="container">
       <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'companion' ? 'active' : ''}`}
-          onClick={() => setActiveTab('companion')}
+        <button
+          className={`tab ${activeTab === "companion" ? "active" : ""}`}
+          onClick={() => setActiveTab("companion")}
         >
           Companion
         </button>
-        <button 
-          className={`tab ${activeTab === 'inventory' ? 'active' : ''}`}
-          onClick={() => setActiveTab('inventory')}
+        <button
+          className={`tab ${activeTab === "inventory" ? "active" : ""}`}
+          onClick={() => setActiveTab("inventory")}
         >
           Inventory
         </button>
-        <button 
-          className={`tab ${activeTab === 'bartering' ? 'active' : ''}`}
-          onClick={() => setActiveTab('bartering')}
+        <button
+          className={`tab ${activeTab === "bartering" ? "active" : ""}`}
+          onClick={() => setActiveTab("bartering")}
         >
           Bartering
         </button>
-        <button 
-          className={`tab ${activeTab === 'tradeLog' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tradeLog')}
+        <button
+          className={`tab ${activeTab === "tradeLog" ? "active" : ""}`}
+          onClick={() => setActiveTab("tradeLog")}
         >
           Trade Log
         </button>
-        <button 
-          className={`tab ${activeTab === 'map' ? 'active' : ''}`}
-          onClick={() => setActiveTab('map')}
+        <button
+          className={`tab ${activeTab === "map" ? "active" : ""}`}
+          onClick={() => setActiveTab("map")}
         >
           Map
+        </button>
+        <button
+          className={`tab ${activeTab === "encyclopedia" ? "active" : ""}`}
+          onClick={() => setActiveTab("encyclopedia")}
+        >
+          Encyclopedia
         </button>
       </div>
     </nav>
