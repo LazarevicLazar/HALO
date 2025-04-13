@@ -12,6 +12,7 @@ const CompanionTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
   
   // Check if speech recognition is supported
   useEffect(() => {
@@ -160,6 +161,22 @@ const CompanionTab: React.FC = () => {
                 )}
               </button>
             )}
+            
+            {/* Debug button */}
+            <button
+              className="button mt-1"
+              onClick={() => setShowDebug(!showDebug)}
+              style={{
+                backgroundColor: showDebug ? 'var(--danger-color)' : 'var(--primary-color)',
+                border: '1px solid var(--border-color)',
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.8rem',
+                width: '100%',
+                cursor: 'pointer'
+              }}
+            >
+              {showDebug ? 'Hide Debug' : 'Debug'}
+            </button>
           </div>
         </div>
         
@@ -174,10 +191,21 @@ const CompanionTab: React.FC = () => {
             <AssistantInfo />
           </div>
           
-          {/* Add the voice test component */}
-          <div className="mt-1">
-            <VoiceTest />
-          </div>
+          {/* Voice test component - only shown in debug mode */}
+          {showDebug && (
+            <div className="mt-1">
+              <h3 style={{
+                fontSize: '1rem',
+                marginBottom: '0.5rem',
+                backgroundColor: 'var(--danger-color)',
+                padding: '0.25rem 0.5rem',
+                borderRadius: '4px'
+              }}>
+                Debug: Voice Test Panel
+              </h3>
+              <VoiceTest />
+            </div>
+          )}
         </div>
       </div>
     </div>
