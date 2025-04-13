@@ -1,5 +1,8 @@
 import apiConfig from '../config/apiConfig';
 
+// Custom event for speech status changes
+export const SPEECH_STATUS_EVENT = 'speech-status-change';
+
 export class VoiceService {
   private static instance: VoiceService;
   private audio: HTMLAudioElement | null = null;
@@ -91,11 +94,17 @@ export class VoiceService {
     if (this.audioQueue.length === 0) {
       console.log('VOICE SERVICE: Queue is empty, stopping processing');
       this.processingQueue = false;
+      this.setStreamingStatus(false);
       return;
     }
     
     this.processingQueue = true;
     console.log('VOICE SERVICE: Set processingQueue flag to true');
+    
+    // Set streaming status to true as soon as we start processing the queue
+    // This ensures the talking animation starts immediately
+    this.setStreamingStatus(true);
+    console.log('VOICE SERVICE: Set isStreaming flag to true at start of queue processing');
     
     // Get the next sentence from the queue
     const sentence = this.audioQueue.shift() || '';
@@ -105,9 +114,8 @@ export class VoiceService {
       // Stop any currently playing audio
       this.stopCurrentAudio();
       console.log('Stopped current audio');
+      // Streaming flag is now set at the beginning of processQueue
       
-      // Set streaming flag
-      this.isStreaming = true;
       
       // Use the ElevenLabs API directly
       const voiceId = apiConfig.elevenLabs.defaultVoice;
@@ -175,8 +183,15 @@ export class VoiceService {
       audioElement.onended = () => {
         console.log('VOICE SERVICE: Audio playback ended');
         URL.revokeObjectURL(audioUrl);
-        this.isStreaming = false;
-        console.log('VOICE SERVICE: Set isStreaming flag to false');
+        
+        // Only set streaming status to false if there are no more items in the queue
+        if (this.audioQueue.length === 0) {
+          this.setStreamingStatus(false);
+          console.log('VOICE SERVICE: Queue empty, setting isStreaming to false');
+        } else {
+          console.log('VOICE SERVICE: More items in queue, keeping isStreaming true');
+        }
+        
         console.log('VOICE SERVICE: Continuing to process queue after playback ended');
         this.processQueue();
       };
@@ -184,8 +199,15 @@ export class VoiceService {
       audioElement.onerror = (error) => {
         console.error('VOICE SERVICE: Error playing audio:', error);
         URL.revokeObjectURL(audioUrl);
-        this.isStreaming = false;
-        console.log('VOICE SERVICE: Set isStreaming flag to false due to error');
+        
+        // Only set streaming status to false if there are no more items in the queue
+        if (this.audioQueue.length === 0) {
+          this.setStreamingStatus(false);
+          console.log('VOICE SERVICE: Queue empty, setting isStreaming to false after error');
+        } else {
+          console.log('VOICE SERVICE: More items in queue, keeping isStreaming true despite error');
+        }
+        
         console.log('VOICE SERVICE: Continuing to process queue after playback error');
         this.processQueue();
       };
@@ -198,7 +220,15 @@ export class VoiceService {
       } catch (playError) {
         console.error('VOICE SERVICE: Error starting audio playback:', playError);
         URL.revokeObjectURL(audioUrl);
-        this.isStreaming = false;
+        
+        // Only set streaming status to false if there are no more items in the queue
+        if (this.audioQueue.length === 0) {
+          this.setStreamingStatus(false);
+          console.log('VOICE SERVICE: Queue empty, setting isStreaming to false after play error');
+        } else {
+          console.log('VOICE SERVICE: More items in queue, keeping isStreaming true despite play error');
+        }
+        
         this.processQueue();
       }
       
@@ -207,8 +237,13 @@ export class VoiceService {
       console.log('VOICE SERVICE: Error type:', error instanceof Error ? error.name : typeof error);
       console.log('VOICE SERVICE: Error message:', error instanceof Error ? error.message : String(error));
       
-      this.isStreaming = false;
-      console.log('VOICE SERVICE: Set isStreaming flag to false due to catch block error');
+      // Only set streaming status to false if there are no more items in the queue
+      if (this.audioQueue.length === 0) {
+        this.setStreamingStatus(false);
+        console.log('VOICE SERVICE: Queue empty, setting isStreaming to false due to catch block error');
+      } else {
+        console.log('VOICE SERVICE: More items in queue, keeping isStreaming true despite catch block error');
+      }
       
       // Continue with the next item in the queue
       console.log('VOICE SERVICE: Continuing to process queue after error');
@@ -235,7 +270,7 @@ export class VoiceService {
     console.log('stopSpeaking called');
     this.stopCurrentAudio();
     this.audioQueue = [];
-    this.isStreaming = false;
+    this.setStreamingStatus(false);
     this.processingQueue = false;
   }
   
@@ -246,6 +281,28 @@ export class VoiceService {
     console.log('clearAllSpeech called');
     this.stopSpeaking();
     this.processedSentences.clear();
+  }
+  
+  /**
+   * Set the streaming status and dispatch an event
+   */
+  private setStreamingStatus(status: boolean): void {
+    // Update the internal state
+    this.isStreaming = status;
+    console.log(`VOICE SERVICE: Set isStreaming flag to ${status}`);
+    
+    // Dispatch a custom event that components can listen for
+    const event = new CustomEvent(SPEECH_STATUS_EVENT, {
+      detail: { isSpeaking: status }
+    });
+    document.dispatchEvent(event);
+  }
+  
+  /**
+   * Check if speech is currently happening
+   */
+  public isSpeaking(): boolean {
+    return this.isStreaming;
   }
   
   /**
