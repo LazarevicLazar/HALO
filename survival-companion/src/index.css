@@ -32,6 +32,34 @@ body {
   padding: 1rem;
 }
 
+/* Tab content container */
+.tab-content-container {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Title styles */
+.title-container h1 {
+  animation: titlePulse 3s infinite alternate;
+}
+
+@keyframes titlePulse {
+  0% {
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(139, 93, 51, 0.6);
+  }
+  100% {
+    text-shadow: 0 4px 12px rgba(0, 0, 0, 0.9), 0 0 20px rgba(139, 93, 51, 0.8);
+  }
+}
+
 /* Button styles */
 .button {
   background-color: var(--secondary-color);
@@ -80,6 +108,8 @@ body {
   margin-bottom: 1rem;
   box-shadow: 0 2px 4px var(--shadow-color);
   backdrop-filter: blur(5px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card-title {
@@ -94,6 +124,7 @@ body {
   display: flex;
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 1rem;
+  overflow: hidden; /* Ensure no scrollbars */
 }
 
 .tab {
@@ -106,10 +137,18 @@ body {
   color: var(--text-color);
   font-family: "Courier New", monospace;
   transition: all 0.2s ease;
+  font-size: 1.1rem; /* Increased font size */
+  font-weight: 500; /* Medium font weight */
+  letter-spacing: 0.5px; /* Added letter spacing */
+  white-space: nowrap; /* Prevent text wrapping */
+  overflow: hidden; /* Hide any overflow */
+  text-overflow: ellipsis; /* Add ellipsis for overflow text */
 }
 
 .tab:hover {
   color: var(--accent-color);
+  transform: translateY(-2px); /* Slight lift on hover */
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); /* Enhanced text shadow on hover */
 }
 
 .tab.active {
@@ -118,6 +157,20 @@ body {
   border-bottom-color: transparent;
   color: var(--accent-color);
   font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5); /* Enhanced text shadow for active tab */
+  position: relative; /* For the ::after pseudo-element */
+}
+
+/* Enhanced active tab with subtle glow */
+.tab.active::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--accent-color);
+  box-shadow: 0 0 8px var(--accent-color);
 }
 
 /* Utility classes */
@@ -167,4 +220,17 @@ body {
 
 .p-1 {
   padding: 0.5rem;
+}
+
+/* Ensure all tab content has consistent width */
+.companion-tab,
+.inventory-tab,
+.bartering-tab,
+.trade-log-tab,
+.map-tab,
+.encyclopedia-tab,
+.emergency-beacon-tab,
+.creators-tab {
+  width: 100%;
+  box-sizing: border-box;
 }

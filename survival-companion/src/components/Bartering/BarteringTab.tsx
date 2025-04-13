@@ -3,6 +3,80 @@ import { InventoryContext } from "../../contexts/InventoryContext";
 import { BarterContext } from "../../contexts/BarterContext";
 import { InventoryItem } from "../../data/mockInventory";
 
+// CSS for the NPC cards
+const npcCardStyle = {
+  cursor: "pointer",
+  display: "flex",
+  flexDirection: "column" as const,
+  height: "380px",
+  transition: "all 0.3s ease",
+  position: "relative" as const,
+  overflow: "hidden",
+  border: "1px solid var(--border-color)",
+  boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
+};
+
+const npcCardHoverStyle = {
+  transform: "translateY(-5px)",
+  boxShadow: "0 8px 16px rgba(0, 0, 0, 0.3)",
+  borderColor: "var(--accent-color)",
+};
+
+const portraitContainerStyle = {
+  height: "220px",
+  overflow: "hidden",
+  position: "relative" as const,
+  borderBottom: "1px solid var(--border-color)",
+};
+
+const portraitImageStyle = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover" as const,
+  transition: "transform 0.5s ease",
+};
+
+const portraitImageHoverStyle = {
+  transform: "scale(1.05)",
+};
+
+const npcInfoStyle = {
+  padding: "1rem",
+  flex: 1,
+  display: "flex",
+  flexDirection: "column" as const,
+  position: "relative" as const,
+  zIndex: 1,
+};
+
+const specialtyBadgeStyle = {
+  position: "absolute" as const,
+  top: "-15px",
+  right: "10px",
+  backgroundColor: "var(--accent-color)",
+  color: "#fff",
+  padding: "0.25rem 0.5rem",
+  borderRadius: "4px",
+  fontSize: "0.8rem",
+  fontWeight: "bold",
+  boxShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
+};
+
+const relationshipBarContainerStyle = {
+  height: "6px",
+  backgroundColor: "rgba(0, 0, 0, 0.2)",
+  borderRadius: "3px",
+  overflow: "hidden",
+  marginTop: "0.5rem",
+};
+
+const relationshipBarStyle = (level: number) => ({
+  height: "100%",
+  width: `${level}%`,
+  backgroundColor: level > 70 ? "#4CAF50" : level > 40 ? "#FFC107" : "#F44336",
+  transition: "width 0.3s ease",
+});
+
 const BarteringTab: React.FC = () => {
   const { inventory } = useContext(InventoryContext);
   const {
@@ -37,8 +111,9 @@ const BarteringTab: React.FC = () => {
     rejectTradeOffer,
   } = useContext(BarterContext);
 
-  // Local state for trading mode
+  // Local state for trading mode and hover state
   const [tradingMode, setTradingMode] = useState<"npc" | "bluetooth">("npc");
+  const [hoveredNPC, setHoveredNPC] = useState<string | null>(null);
 
   // Render the Bluetooth device discovery and connection UI
   const renderBluetoothDiscovery = () => {
@@ -334,36 +409,193 @@ const BarteringTab: React.FC = () => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "1.5rem",
+              marginTop: "1rem",
             }}
           >
-            {npcs.map((npc) => (
-              <div
-                key={npc.id}
-                className="card"
-                style={{ cursor: "pointer" }}
-                onClick={() => selectNPC(npc)}
-              >
-                <h4 className="text-accent">{npc.name}</h4>
-                <p>{npc.description}</p>
-                <p>
-                  <strong>Specialty:</strong> {npc.specialty}
-                </p>
-                <p>
-                  <strong>Relationship:</strong> {npc.relationshipLevel}/100
-                </p>
-              </div>
-            ))}
+            {npcs.map((npc) => {
+              // Determine which image to use based on NPC name
+              let portraitSrc = "";
+              if (npc.name === "Doc Wilson") {
+                portraitSrc = "/assets/images/Doctor_Wilson.png";
+              } else if (npc.name === "Hunter Mike") {
+                portraitSrc = "/assets/images/Hunter_Mike.png";
+              } else if (npc.name === "Farmer Sarah") {
+                portraitSrc = "/assets/images/Farmer_Sarah.png";
+              }
+
+              const isHovered = hoveredNPC === npc.id;
+
+              return (
+                <div
+                  key={npc.id}
+                  style={{
+                    ...npcCardStyle,
+                    ...(isHovered ? npcCardHoverStyle : {}),
+                  }}
+                  onClick={() => selectNPC(npc)}
+                  onMouseEnter={() => setHoveredNPC(npc.id)}
+                  onMouseLeave={() => setHoveredNPC(null)}
+                >
+                  <div style={portraitContainerStyle}>
+                    <img
+                      src={portraitSrc}
+                      alt={npc.name}
+                      style={{
+                        ...portraitImageStyle,
+                        ...(isHovered ? portraitImageHoverStyle : {}),
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        background:
+                          "linear-gradient(transparent, rgba(0,0,0,0.7))",
+                        padding: "2rem 1rem 0.5rem",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          margin: 0,
+                          color: "#fff",
+                          textShadow: "0 2px 4px rgba(0,0,0,0.5)",
+                          fontSize: "1.5rem",
+                        }}
+                      >
+                        {npc.name}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div style={npcInfoStyle}>
+                    <div style={specialtyBadgeStyle}>{npc.specialty}</div>
+
+                    <p style={{ flex: 1, margin: "0.5rem 0 1rem" }}>
+                      {npc.description}
+                    </p>
+
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span>Relationship</span>
+                        <span>{npc.relationshipLevel}/100</span>
+                      </div>
+                      <div style={relationshipBarContainerStyle}>
+                        <div
+                          style={relationshipBarStyle(npc.relationshipLevel)}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
     }
 
+    // Determine which image to use based on NPC name for the selected NPC
+    let selectedPortraitSrc = "";
+    if (selectedNPC.name === "Doc Wilson") {
+      selectedPortraitSrc = "/assets/images/Doctor_Wilson.png";
+    } else if (selectedNPC.name === "Hunter Mike") {
+      selectedPortraitSrc = "/assets/images/Hunter_Mike.png";
+    } else if (selectedNPC.name === "Farmer Sarah") {
+      selectedPortraitSrc = "/assets/images/Farmer_Sarah.png";
+    }
+
     return (
       <div>
         <div className="flex justify-between align-center mb-1">
-          <h3>Trading with {selectedNPC.name}</h3>
+          <div className="flex align-center" style={{ gap: "1rem" }}>
+            <div
+              style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "50%",
+                overflow: "hidden",
+                border: "3px solid var(--accent-color)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                position: "relative",
+              }}
+            >
+              <img
+                src={selectedPortraitSrc}
+                alt={selectedNPC.name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            </div>
+            <div>
+              <h3 style={{ margin: 0 }}>Trading with {selectedNPC.name}</h3>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  marginTop: "0.25rem",
+                }}
+              >
+                <span
+                  style={{
+                    backgroundColor: "var(--accent-color)",
+                    color: "#fff",
+                    padding: "0.15rem 0.4rem",
+                    borderRadius: "3px",
+                    fontSize: "0.8rem",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {selectedNPC.specialty}
+                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  <span>Relationship:</span>
+                  <div
+                    style={{
+                      width: "80px",
+                      height: "6px",
+                      backgroundColor: "rgba(0,0,0,0.2)",
+                      borderRadius: "3px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${selectedNPC.relationshipLevel}%`,
+                        backgroundColor:
+                          selectedNPC.relationshipLevel > 70
+                            ? "#4CAF50"
+                            : selectedNPC.relationshipLevel > 40
+                            ? "#FFC107"
+                            : "#F44336",
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <button className="button" onClick={() => selectNPC(null)}>
             Back to NPC List
           </button>

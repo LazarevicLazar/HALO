@@ -15,7 +15,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            margin: "1rem 0",
+            margin: "1.5rem 0",
             textShadow: "0 2px 4px rgba(0, 0, 0, 0.8)",
           }}
         >
@@ -23,8 +23,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             className="text-accent"
             style={{
               margin: "0 0 0.5rem 0",
-              fontSize: "2.5rem",
-              letterSpacing: "0.2rem",
+              fontSize: "4rem",
+              fontWeight: "800",
+              letterSpacing: "0.3rem",
+              textTransform: "uppercase",
+              textShadow:
+                "0 4px 8px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(139, 93, 51, 0.6)",
             }}
           >
             H.A.L.O
@@ -33,10 +37,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             className="text-muted"
             style={{
               margin: 0,
-              fontSize: "1.2rem",
+              fontSize: "1.4rem",
               fontWeight: "normal",
               textAlign: "center",
-              letterSpacing: "0.1rem",
+              letterSpacing: "0.15rem",
             }}
           >
             Human Assistance Logistics Operator

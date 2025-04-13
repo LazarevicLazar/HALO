@@ -16,10 +16,12 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
           padding: "0.5rem",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.5)",
           display: "flex",
-          height: "50px",
+          height: "60px", // Increased height to accommodate larger text
+          width: "1200px", // Increased width from 1000px to 1200px
+          maxWidth: "100%", // Ensures it doesn't overflow on smaller screens
+          margin: "0 auto", // Center the navigation bar
           alignItems: "center",
-          overflow: "auto",
-          whiteSpace: "nowrap",
+          overflow: "hidden", // Changed from 'auto' to 'hidden' to remove scroll bar
           position: "sticky",
           top: 0,
           zIndex: 100,
@@ -40,10 +42,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Companion
@@ -55,10 +61,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Inventory
@@ -70,10 +80,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Bartering
@@ -85,10 +99,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Trade Log
@@ -100,10 +118,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Map
@@ -115,10 +137,14 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Encyclopedia
@@ -130,13 +156,36 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
               textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
               flex: "1",
               textAlign: "center",
-              height: "36px",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
             }}
           >
             Emergency
+          </button>
+          <button
+            className={`tab ${activeTab === "creators" ? "active" : ""}`}
+            onClick={() => setActiveTab("creators")}
+            style={{
+              textShadow: "0 1px 2px rgba(0, 0, 0, 0.8)",
+              flex: "1",
+              textAlign: "center",
+              height: "46px", // Increased height
+              width: "150px", // Increased width from 125px to 150px
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.1rem", // Increased font size
+              fontWeight: "500", // Added medium font weight
+              letterSpacing: "0.5px", // Added letter spacing for better readability
+            }}
+          >
+            Creators
           </button>
         </div>
       </div>
