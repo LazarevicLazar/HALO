@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { MapMarker } from "../../data/mockMapMarkers";
+import MarkerForm from "./MarkerForm";
 
 interface MapControlsProps {
   onAddMarker: (marker: Omit<MapMarker, "id" | "createdAt">) => void;
@@ -24,6 +25,9 @@ const MapControls: React.FC<MapControlsProps> = ({
   drawingPoints,
   setDrawingPoints,
 }) => {
+  // State for the form
+  const [showAreaForm, setShowAreaForm] = useState(false);
+  const [formPosition, setFormPosition] = useState<[number, number]>([0, 0]);
   // Start adding a marker
   const handleAddMarker = () => {
     if (drawingMode === "marker") {
@@ -71,43 +75,67 @@ const MapControls: React.FC<MapControlsProps> = ({
     console.log("Completing area with points:", drawingPoints.length);
 
     if (drawingPoints.length >= 3) {
-      // Prompt for area details
-      const name = prompt("Name this area:");
-      if (name) {
-        const description = prompt("Add a description (optional):");
-        const markerType =
-          prompt("Type (home, resource, danger, ally, cache, other):") ||
-          "other";
-
-        console.log("Creating area with name:", name, "type:", markerType);
-
-        // Create new area marker
-        const newArea: Omit<MapMarker, "id" | "createdAt"> = {
-          name,
-          description: description || "",
-          type: "polygon",
-          coordinates: drawingPoints,
-          markerType: markerType as any,
-        };
-
-        console.log("Calling onAddArea with:", newArea);
-        onAddArea(newArea);
-        console.log("Area added successfully");
-      }
+      // Calculate center of polygon for form position
+      const center = calculatePolygonCenter(drawingPoints);
+      setFormPosition(center);
+      setShowAreaForm(true);
     } else {
       console.warn(
         "Not enough points to create an area:",
         drawingPoints.length
       );
       alert("Please add at least 3 points to create an area.");
-      return;
     }
+  };
+
+  // Calculate center of polygon
+  const calculatePolygonCenter = (
+    points: [number, number][]
+  ): [number, number] => {
+    if (points.length === 0) return [0, 0];
+
+    let sumLat = 0;
+    let sumLng = 0;
+
+    points.forEach((point) => {
+      sumLat += point[0];
+      sumLng += point[1];
+    });
+
+    return [sumLat / points.length, sumLng / points.length];
+  };
+
+  // Handle area form submission
+  const handleAreaFormSubmit = (data: {
+    name: string;
+    description: string;
+    markerType: string;
+  }) => {
+    // Create new area marker
+    const newArea: Omit<MapMarker, "id" | "createdAt"> = {
+      name: data.name,
+      description: data.description,
+      type: "polygon",
+      coordinates: drawingPoints,
+      markerType: data.markerType as any,
+    };
+
+    console.log("Calling onAddArea with:", newArea);
+    onAddArea(newArea);
+    console.log("Area added successfully");
 
     // Reset
+    setShowAreaForm(false);
     setDrawingMode(null);
     setIsDrawing(false);
     setDrawingPoints([]);
     console.log("Area drawing completed and reset");
+  };
+
+  // Handle area form cancel
+  const handleAreaFormCancel = () => {
+    setShowAreaForm(false);
+    // Don't reset drawing mode or points so user can continue editing
   };
 
   // Cancel drawing
@@ -174,6 +202,17 @@ const MapControls: React.FC<MapControlsProps> = ({
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Area Form Modal */}
+      {showAreaForm && (
+        <MarkerForm
+          position={formPosition}
+          onSubmit={handleAreaFormSubmit}
+          onCancel={handleAreaFormCancel}
+          isArea={true}
+          pointCount={drawingPoints.length}
+        />
       )}
     </div>
   );

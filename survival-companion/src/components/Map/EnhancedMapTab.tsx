@@ -9,6 +9,7 @@ import apiConfig from "../../config/apiConfig";
 import MapControls from "./MapControls";
 import MapLegend from "./MapLegend";
 import MarkerDetails from "./MarkerDetails";
+import MarkerForm from "./MarkerForm";
 
 // Fix for Leaflet's icon issues with webpack
 import icon from "leaflet/dist/images/marker-icon.png";
@@ -23,44 +24,42 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+// Get icon based on marker type
+const getMarkerIcon = (type: string) => {
+  switch (type) {
+    case "danger":
+      return "⚠️";
+    case "resource":
+      return "🔋";
+    case "home":
+      return "🏠";
+    case "ally":
+      return "👥";
+    case "cache":
+      return "📦";
+    default:
+      return "📍";
+  }
+};
+
+// Create custom divIcon with emoji for each marker type
+const createMarkerIcon = (type: string) => {
+  return L.divIcon({
+    html: `<div class="custom-marker-icon">${getMarkerIcon(type)}</div>`,
+    className: "custom-div-icon",
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+};
+
 // Custom marker icons for different types
 const markerIcons = {
-  home: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
-  resource: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
-  danger: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
-  ally: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
-  cache: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
-  other: L.icon({
-    iconUrl: icon, // Replace with custom icon
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-  }),
+  home: createMarkerIcon("home"),
+  resource: createMarkerIcon("resource"),
+  danger: createMarkerIcon("danger"),
+  ally: createMarkerIcon("ally"),
+  cache: createMarkerIcon("cache"),
+  other: createMarkerIcon("other"),
 };
 
 const EnhancedMapTab: React.FC = () => {
@@ -84,9 +83,85 @@ const EnhancedMapTab: React.FC = () => {
   );
   const [drawingPoints, setDrawingPoints] = useState<[number, number][]>([]);
   const [previewLayer, setPreviewLayer] = useState<L.Polygon | null>(null);
+  const [showMarkerForm, setShowMarkerForm] = useState(false);
+  const [formPosition, setFormPosition] = useState<[number, number]>([0, 0]);
+  const [formIsArea, setFormIsArea] = useState(false);
 
   // User location marker reference
   const userLocationMarkerRef = useRef<L.Marker | null>(null);
+
+  // Calculate center of polygon
+  const calculatePolygonCenter = (
+    points: [number, number][]
+  ): [number, number] => {
+    if (points.length === 0) return [0, 0];
+
+    let sumLat = 0;
+    let sumLng = 0;
+
+    points.forEach((point) => {
+      sumLat += point[0];
+      sumLng += point[1];
+    });
+
+    return [sumLat / points.length, sumLng / points.length];
+  };
+
+  // Handle marker form submission
+  const handleMarkerFormSubmit = (data: {
+    name: string;
+    description: string;
+    markerType: string;
+  }) => {
+    if (formIsArea) {
+      // Create new area
+      const newArea = {
+        name: data.name,
+        description: data.description,
+        type: "polygon" as const,
+        coordinates: drawingPoints,
+        markerType: data.markerType as any,
+      };
+
+      console.log("Adding area to map:", newArea);
+      addMarker(newArea);
+      triggerCompanionResponse(`map_marker_added:${data.name}`);
+      console.log("Area added successfully");
+    } else {
+      // Create new marker
+      const newMarker = {
+        name: data.name,
+        description: data.description,
+        type: "marker" as const,
+        coordinates: formPosition,
+        markerType: data.markerType as any,
+      };
+
+      console.log("Adding marker to map:", newMarker);
+      addMarker(newMarker);
+      triggerCompanionResponse(`map_marker_added:${data.name}`);
+      console.log("Marker added successfully");
+    }
+
+    // Reset state
+    setShowMarkerForm(false);
+    setDrawingMode(null);
+    setIsDrawing(false);
+    setDrawingPoints([]);
+  };
+
+  // Handle marker form cancel
+  const handleMarkerFormCancel = () => {
+    setShowMarkerForm(false);
+    if (formIsArea) {
+      // Keep drawing mode active for area
+      // but don't reset points so user can continue adding points
+    } else {
+      // Reset drawing mode for marker
+      setDrawingMode(null);
+      setIsDrawing(false);
+    }
+  };
 
   // Handle map click for drawing - defined before it's used in useEffect
   const handleMapClick = (e: L.LeafletMouseEvent) => {
@@ -108,42 +183,24 @@ const EnhancedMapTab: React.FC = () => {
 
     if (drawingMode === "marker") {
       console.log("Adding a new marker");
-      // Prompt for marker details
-      const name = prompt("Name this location:");
-      if (name) {
-        const description = prompt("Add a description (optional):");
-        const markerType =
-          prompt("Type (home, resource, danger, ally, cache, other):") ||
-          "other";
-
-        console.log("Creating marker:", name, "type:", markerType);
-
-        // Create new marker
-        const newMarker = {
-          name,
-          description: description || "",
-          type: "marker" as const,
-          coordinates: [e.latlng.lat, e.latlng.lng] as [number, number],
-          markerType: markerType as any,
-        };
-
-        console.log("Adding marker to map:", newMarker);
-        addMarker(newMarker);
-        triggerCompanionResponse(`map_marker_added:${name}`);
-        console.log("Marker added successfully");
-
-        // Reset drawing mode
-        setDrawingMode(null);
-        setIsDrawing(false);
-      }
+      // Show marker form instead of prompts
+      setFormPosition([e.latlng.lat, e.latlng.lng]);
+      setFormIsArea(false);
+      setShowMarkerForm(true);
     } else if (drawingMode === "area") {
       // Add point to area
       console.log("Adding point to area:", e.latlng.lat, e.latlng.lng);
       console.log("Current points:", drawingPoints.length);
 
-      setDrawingPoints([...drawingPoints, [e.latlng.lat, e.latlng.lng]]);
+      const newPoints = [
+        ...drawingPoints,
+        [e.latlng.lat, e.latlng.lng] as [number, number],
+      ];
+      setDrawingPoints(newPoints);
 
-      console.log("Point added, new total:", drawingPoints.length + 1);
+      console.log("Point added, new total:", newPoints.length);
+
+      // We don't show the form automatically anymore - user must click "Complete Area" button
     }
   };
 
@@ -468,6 +525,17 @@ const EnhancedMapTab: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Marker Form Modal */}
+      {showMarkerForm && (
+        <MarkerForm
+          position={formPosition}
+          onSubmit={handleMarkerFormSubmit}
+          onCancel={handleMarkerFormCancel}
+          isArea={formIsArea}
+          pointCount={drawingPoints.length}
+        />
+      )}
     </div>
   );
 };
