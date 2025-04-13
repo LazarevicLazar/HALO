@@ -59,7 +59,18 @@ const CompanionTab: React.FC = () => {
   
   return (
     <div className="card">
-      <h2 className="card-title">AI Assistant</h2>
+      <div style={{ textAlign: 'center' }}>
+        {/* <h2 className="card-title">H.A.L.O</h2>
+        <h3 className="card-subtitle" style={{
+          fontSize: '0.9rem',
+          marginTop: '-0.5rem',
+          marginBottom: '1rem',
+          color: 'var(--text-secondary-color)',
+          fontWeight: 'normal'
+        }}>
+          Human Assistance Logistics Operator
+        </h3> */}
+      </div>
       
       {error && (
         <div className="alert alert-danger" style={{

@@ -49,7 +49,7 @@ const MessageList: React.FC<MessageListProps> = ({
   const renderWelcomeMessage = () => (
     <div className="welcome-message" style={{ padding: '1rem' }}>
       <p className="text-accent" style={{ fontWeight: 'bold' }}>Welcome!</p>
-      <p>I'm your AI assistant. How can I help you today?</p>
+      <p>I'm H.A.L.O. How can I help you today?</p>
       <p>You can ask me questions or request information on various topics.</p>
     </div>
   );

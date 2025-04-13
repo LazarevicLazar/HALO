@@ -7,24 +7,28 @@ interface AssistantInfoProps {
 // Array of assistant capabilities and example queries
 const ASSISTANT_INFO = [
   {
-    title: "General Information",
-    description: "I can provide information on a wide range of topics."
+    title: "About H.A.L.O",
+    description: "Human Assistance Logistics Operator - Your sarcastic survival companion in the post-apocalyptic wasteland."
   },
   {
-    title: "Answering Questions",
-    description: "Ask me questions and I'll do my best to answer them."
+    title: "Survival Guidance",
+    description: "I can provide information on scavenging, shelter, radiation zones, and other survival essentials."
   },
   {
-    title: "Conversation",
-    description: "I can engage in casual conversation on various topics."
+    title: "Threat Assessment",
+    description: "Ask me to evaluate dangers in your environment or assess the risk level of your brilliant plans."
   },
   {
-    title: "Assistance",
-    description: "I can help you with tasks and provide guidance."
+    title: "Resource Management",
+    description: "I can help track your inventory and suggest what supplies you should prioritize finding."
+  },
+  {
+    title: "Navigation Assistance",
+    description: "I can help you navigate the wasteland and mark important locations on your map."
   },
   {
     title: "Examples",
-    description: "Try asking: 'What can you do?', 'Tell me about yourself', or 'Help me with...'."
+    description: "Try asking: 'Is this water safe?', 'How do I treat radiation sickness?', or 'What should I scavenge from this building?'"
   }
 ];
 
@@ -60,7 +64,7 @@ const AssistantInfo: React.FC<AssistantInfoProps> = ({
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="info-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <p className="text-accent" style={{ fontWeight: 'bold', margin: 0 }}>Assistant Info:</p>
+        <p className="text-accent" style={{ fontWeight: 'bold', margin: 0 }}>H.A.L.O Capabilities:</p>
         <div className="info-controls" style={{ display: 'flex', gap: '0.5rem' }}>
           <button 
             className="info-button"
