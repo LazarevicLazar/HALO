@@ -1,26 +1,26 @@
 import React, { useContext, useState, KeyboardEvent } from 'react';
 import { CompanionContext } from '../../contexts/CompanionContext';
 
-interface MessageInputProps {
+interface TextInputProps {
   placeholder?: string;
   disabled?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ 
-  placeholder = 'Type a message to your companion...',
+const TextInput: React.FC<TextInputProps> = ({ 
+  placeholder = 'Type a message...',
   disabled = false
 }) => {
-  const { state, sendTextMessage } = useContext(CompanionContext);
+  const { state, sendMessage } = useContext(CompanionContext);
   const [inputMessage, setInputMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Handle sending a message
   const handleSendMessage = async () => {
-    if (inputMessage.trim() && !isSubmitting && state !== 'talking') {
+    if (inputMessage.trim() && !isSubmitting && state !== 'responding') {
       setIsSubmitting(true);
       
       try {
-        await sendTextMessage(inputMessage);
+        await sendMessage(inputMessage);
         setInputMessage('');
       } catch (error) {
         console.error('Error sending message:', error);
@@ -39,11 +39,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   };
   
   // Determine if input should be disabled
-  const isInputDisabled = disabled || isSubmitting || state === 'talking' || state === 'listening';
+  const isInputDisabled = disabled || isSubmitting || state === 'responding' || state === 'thinking';
   
   return (
     <div 
-      className="message-input"
+      className="text-input"
       style={{
         display: 'flex',
         gap: '0.5rem',
@@ -126,4 +126,4 @@ const MessageInput: React.FC<MessageInputProps> = ({
   );
 };
 
-export default MessageInput;
+export default TextInput;

@@ -1,12 +1,12 @@
 import React, { useContext, useEffect, useRef } from 'react';
 import { CompanionContext, Message } from '../../contexts/CompanionContext';
 
-interface MessageDisplayProps {
+interface MessageListProps {
   maxHeight?: string;
   backgroundColor?: string;
 }
 
-const MessageDisplay: React.FC<MessageDisplayProps> = ({ 
+const MessageList: React.FC<MessageListProps> = ({ 
   maxHeight = '300px',
   backgroundColor = 'var(--primary-color)'
 }) => {
@@ -48,15 +48,15 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   // Render welcome message if no messages
   const renderWelcomeMessage = () => (
     <div className="welcome-message" style={{ padding: '1rem' }}>
-      <p className="text-accent" style={{ fontWeight: 'bold' }}>Welcome, survivor.</p>
-      <p>I'm your post-apocalyptic companion. I'm here to help you survive in this harsh world.</p>
-      <p>You can ask me about survival skills, resource management, or use the tabs to manage your inventory, trade with other survivors, and navigate the wasteland.</p>
+      <p className="text-accent" style={{ fontWeight: 'bold' }}>Welcome!</p>
+      <p>I'm your AI assistant. How can I help you today?</p>
+      <p>You can ask me questions or request information on various topics.</p>
     </div>
   );
   
   return (
     <div 
-      className="message-display"
+      className="message-list"
       style={{ 
         height: maxHeight, 
         maxHeight: maxHeight,
@@ -113,4 +113,4 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({
   );
 };
 
-export default MessageDisplay;
+export default MessageList;

@@ -32,10 +32,10 @@ const CompanionAvatar: React.FC<CompanionAvatarProps> = ({
       case 'idle':
         setAnimationPath('/assets/animations/Idle.gif');
         break;
-      case 'listening':
+      case 'thinking':
         setAnimationPath('/assets/animations/Listening.gif');
         break;
-      case 'talking':
+      case 'responding':
         setAnimationPath('/assets/animations/Talking.gif');
         break;
       default:
@@ -46,6 +46,7 @@ const CompanionAvatar: React.FC<CompanionAvatarProps> = ({
   return (
     <div className="companion-avatar" style={{ position: 'relative' }}>
       <img 
+        id="companion-avatar"
         src={animationPath}
         alt={`Companion ${state}`}
         style={{ 
@@ -68,7 +69,7 @@ const CompanionAvatar: React.FC<CompanionAvatarProps> = ({
             borderRadius: '50%',
             backgroundColor: state === 'idle' 
               ? 'var(--success-color)' 
-              : state === 'listening' 
+              : state === 'thinking' 
                 ? 'var(--warning-color)' 
                 : 'var(--accent-color)',
             border: '2px solid var(--background-color)',

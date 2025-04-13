@@ -1,123 +1,70 @@
-import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import openRouterService from '../services/openRouterService';
-import speechService from '../services/speechService';
+import React, { createContext, useState, useCallback, ReactNode } from 'react';
 
-// Fallback function when API is unavailable
-const mockSendMessage = async (message: string) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // Simple responses based on keywords
-  if (message.toLowerCase().includes('hello') || message.toLowerCase().includes('hi')) {
-    return "Hello, survivor. How can I assist you today?";
-  } else if (message.toLowerCase().includes('water')) {
-    return "Water is essential for survival. Always keep at least 2 liters per day, and know how to purify it from natural sources.";
-  } else if (message.toLowerCase().includes('food')) {
-    return "Food supplies should be rationed carefully. Focus on non-perishables and learn to identify edible plants in your area.";
-  } else if (message.toLowerCase().includes('shelter')) {
-    return "A good shelter protects from the elements and potential threats. Look for elevated positions with good visibility.";
-  } else if (message.toLowerCase().includes('weapon') || message.toLowerCase().includes('defense')) {
-    return "Self-defense is important, but remember that weapons attract attention. Sometimes stealth is your best defense.";
-  } else {
-    return "I understand. Stay vigilant and keep your supplies close. This world doesn't forgive carelessness.";
-  }
-};
-
-interface CompanionContextType {
-  state: 'idle' | 'listening' | 'talking';
-  messages: Message[];
-  selectedVoice: string;
-  setSelectedVoice: (voice: string) => void;
-  startVoiceInput: () => void;
-  stopVoiceInput: () => void;
-  sendTextMessage: (message: string) => Promise<string>;
-  triggerCompanionResponse: (event: string) => Promise<void>;
-}
-
+// Message interface
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
 }
 
+// Context type
+interface CompanionContextType {
+  state: 'idle' | 'thinking' | 'responding';
+  messages: Message[];
+  sendMessage: (message: string) => void;
+  triggerCompanionResponse: (event: string) => Promise<void>;
+  clearConversation: () => void;
+}
+
+// Create context with default values
 export const CompanionContext = createContext<CompanionContextType>({
   state: 'idle',
   messages: [],
-  selectedVoice: 'rugged-male',
-  setSelectedVoice: () => {},
-  startVoiceInput: () => {},
-  stopVoiceInput: () => {},
-  sendTextMessage: async () => '',
+  sendMessage: () => {},
   triggerCompanionResponse: async () => {},
+  clearConversation: () => {}
 });
 
-interface CompanionProviderProps {
-  children: ReactNode;
-}
-export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }) => {
-  const [state, setState] = useState<'idle' | 'listening' | 'talking'>('idle');
+// Provider component
+export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children }) => {
+  const [state, setState] = useState<'idle' | 'thinking' | 'responding'>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string>('rugged-male');
   
-  // Handle companion state changes
-  useEffect(() => {
-    // Update avatar animation based on state
-    const companionAvatar = document.getElementById('companion-avatar');
-    if (companionAvatar) {
-      companionAvatar.setAttribute('src', `/assets/animations/${state.charAt(0).toUpperCase() + state.slice(1)}.gif`);
-    }
-  }, [state]);
-  
-  // Start listening for voice input
-  const startVoiceInput = useCallback(() => {
-    setState('listening');
+  // Generate a response based on user input
+  const getResponse = (message: string): string => {
+    // Simple pattern matching for responses
+    const lowerMessage = message.toLowerCase();
     
-    // Use Web Speech API for voice recognition
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      
-      recognition.lang = 'en-US';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        console.log('Voice input:', transcript);
-        sendTextMessage(transcript);
-      };
-      
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setState('idle');
-      };
-      
-      recognition.onend = () => {
-        // Only set to idle if we're still in listening state
-        // (prevents overriding the 'talking' state if we got a result)
-        if (state === 'listening') {
-          setState('idle');
-        }
-      };
-      
-      recognition.start();
-    } else {
-      console.warn('Speech recognition not supported in this browser');
-      // Fallback to simulated input for browsers without speech recognition
-      setTimeout(() => {
-        const simulatedVoiceInput = "Hello, can you help me find water?";
-        sendTextMessage(simulatedVoiceInput);
-      }, 2000);
+    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+      return "Hello! I'm your assistant. How can I help you today?";
     }
-  }, [state]);
+    
+    if (lowerMessage.includes('help') || lowerMessage.includes('what can you do')) {
+      return "I can answer questions, provide information, and assist with various tasks. Just let me know what you need help with!";
+    }
+    
+    if (lowerMessage.includes('thank')) {
+      return "You're welcome! Is there anything else I can help you with?";
+    }
+    
+    if (lowerMessage.includes('weather')) {
+      return "I don't have access to real-time weather data, but I can help you find weather information online or answer other questions.";
+    }
+    
+    if (lowerMessage.includes('time') || lowerMessage.includes('date')) {
+      return `The current time and date is ${new Date().toLocaleString()}.`;
+    }
+    
+    if (lowerMessage.includes('name')) {
+      return "I'm your AI assistant. You can call me Assistant.";
+    }
+    
+    // Default response
+    return "I understand. Is there anything specific you'd like to know or discuss?";
+  };
   
-  // Stop listening for voice input
-  const stopVoiceInput = useCallback(() => {
-    setState('idle');
-  }, []);
-  
-  // Send a text message to the companion
-  const sendTextMessage = useCallback(async (message: string) => {
+  // Send a message and get a response
+  const sendMessage = useCallback(async (message: string) => {
     // Add user message
     const userMessage: Message = {
       role: 'user',
@@ -126,65 +73,27 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     };
     
     setMessages(prev => [...prev, userMessage]);
+    setState('thinking');
     
-    // Get companion response
-    setState('talking');
-    
-    // Try to use OpenRouter API, fall back to mock if unavailable
-    let response: string;
-    try {
-      // Check if API key is available
-      const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
-      if (!apiKey || apiKey === 'placeholder_openrouter_key') {
-        throw new Error('OpenRouter API key not found');
-      }
+    // Simulate processing delay
+    setTimeout(() => {
+      // Generate response
+      const responseText = getResponse(message);
       
-      // Create conversation history for context
-      const conversationHistory = messages.slice(-5).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      // Add assistant message
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: responseText,
+        timestamp: new Date().toISOString()
+      };
       
-      // Add user's new message
-      conversationHistory.push({
-        role: 'user',
-        content: message
-      });
-      
-      // Send to OpenRouter API
-      response = await openRouterService.sendMessage(conversationHistory);
-    } catch (error) {
-      console.warn('Error using OpenRouter API, falling back to mock responses:', error);
-      response = await mockSendMessage(message);
-    }
-    
-    // Add companion message
-    const companionMessage: Message = {
-      role: 'assistant',
-      content: response,
-      timestamp: new Date().toISOString()
-    };
-    
-    setMessages(prev => [...prev, companionMessage]);
-    // Determine emotion based on message content
-    let emotion: string = 'neutral';
-    if (response.toLowerCase().includes('danger') || response.toLowerCase().includes('threat') ||
-        response.toLowerCase().includes('caution') || response.toLowerCase().includes('warning')) {
-      emotion = 'fearful';
-    } else if (response.toLowerCase().includes('good') || response.toLowerCase().includes('excellent') ||
-               response.toLowerCase().includes('perfect') || response.toLowerCase().includes('well done')) {
-      emotion = 'happy';
-    } else if (response.toLowerCase().includes('sorry') || response.toLowerCase().includes('unfortunate') ||
-               response.toLowerCase().includes('difficult')) {
-      emotion = 'sad';
-    }
-    
-    // Speak the response with appropriate emotion
-    await speechService.speakText(response, emotion as any, selectedVoice as any);
-    setState('idle');
-    setState('idle');
-    
-    return response;
+      setMessages(prev => [...prev, assistantMessage]);
+      setState('idle');
+    }, 500);
+  }, []);
+  // Clear conversation history
+  const clearConversation = useCallback(() => {
+    setMessages([]);
   }, []);
   
   // Trigger a companion response based on an event
@@ -192,88 +101,40 @@ export const CompanionProvider: React.FC<CompanionProviderProps> = ({ children }
     // Parse the event
     const [eventType, eventData] = event.split(':');
     
-    // Generate appropriate message based on event type
-    let message = '';
+    // Check if this is a valid event type we want to respond to
     switch (eventType) {
       case 'inventory_added':
-        message = `I've added ${eventData} to my inventory.`;
-        break;
       case 'inventory_removed':
-        message = `I've removed ${eventData} from my inventory.`;
-        break;
       case 'inventory_updated':
-        message = `I've updated the quantity of ${eventData} in my inventory.`;
-        break;
       case 'trade_completed':
-        message = `I've completed a trade for ${eventData}.`;
-        break;
       case 'map_marker_added':
-        message = `I've marked ${eventData} on my map.`;
+        // These are valid events we want to respond to
         break;
       default:
         return; // Don't respond to unknown events
     }
     
-    // Get companion response
-    setState('talking');
+    // Generate a simple response based on the event
+    const responseText = `I see you've ${eventType.replace('_', ' ')} ${eventData}. That's a good step.`;
     
-    // Try to use OpenRouter API, fall back to mock if unavailable
-    let response: string;
-    try {
-      // Check if API key is available
-      const apiKey = process.env.REACT_APP_OPENROUTER_API_KEY;
-      if (!apiKey || apiKey === 'placeholder_openrouter_key') {
-        throw new Error('OpenRouter API key not found');
-      }
-      
-      // Create a system message explaining the event
-      const systemMessage = {
-        role: 'system' as const,
-        content: `The user has performed an action in the survival app: ${eventType.replace('_', ' ')} - ${eventData}. Respond as a helpful survival companion with relevant advice about this action.`
-      };
-      
-      // Send to OpenRouter API with just the system message and event
-      response = await openRouterService.sendMessage([
-        systemMessage,
-        { role: 'user' as const, content: message }
-      ]);
-    } catch (error) {
-      console.warn('Error using OpenRouter API, falling back to mock responses:', error);
-      response = await mockSendMessage(message);
-    }
-    
-    // Add companion message
-    const companionMessage: Message = {
+    // Add assistant message
+    const assistantMessage: Message = {
       role: 'assistant',
-      content: response,
+      content: responseText,
       timestamp: new Date().toISOString()
     };
     
-    setMessages(prev => [...prev, companionMessage]);
-    // Determine emotion based on message content
-    let emotion: string = 'neutral';
-    if (message.toLowerCase().includes('danger') || message.toLowerCase().includes('threat')) {
-      emotion = 'fearful';
-    } else if (message.toLowerCase().includes('food') || message.toLowerCase().includes('water')) {
-      emotion = 'neutral';
-    } else if (message.toLowerCase().includes('trade') || message.toLowerCase().includes('barter')) {
-      emotion = 'happy';
-    }
-    
-    // Speak the response with appropriate emotion
-    await speechService.speakText(response, emotion as any, selectedVoice as any);
+    setMessages(prev => [...prev, assistantMessage]);
     setState('idle');
   }, []);
+  
   
   return (
     <CompanionContext.Provider value={{
       state,
       messages,
-      selectedVoice,
-      setSelectedVoice,
-      startVoiceInput,
-      stopVoiceInput,
-      sendTextMessage,
+      sendMessage,
+      clearConversation,
       triggerCompanionResponse
     }}>
       {children}

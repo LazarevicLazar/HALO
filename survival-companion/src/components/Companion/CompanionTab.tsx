@@ -1,23 +1,17 @@
 import React, { useState, useContext } from 'react';
 import { CompanionContext } from '../../contexts/CompanionContext';
 import CompanionAvatar from './CompanionAvatar';
-import VoiceInteraction from './VoiceInteraction';
-import MessageDisplay from './MessageDisplay';
-import MessageInput from './MessageInput';
-import VoiceSelector from './VoiceSelector';
-import SurvivalTips from './SurvivalTips';
+import MessageList from './MessageList';
+import TextInput from './TextInput';
+import AssistantInfo from './AssistantInfo';
 
 const CompanionTab: React.FC = () => {
   const { state } = useContext(CompanionContext);
   const [error, setError] = useState<string | null>(null);
   
-  const handleVoiceError = (errorMessage: string) => {
-    setError(errorMessage);
-    setTimeout(() => setError(null), 5000); // Clear error after 5 seconds
-  };
   return (
     <div className="card">
-      <h2 className="card-title">AI Companion</h2>
+      <h2 className="card-title">AI Assistant</h2>
       
       {error && (
         <div className="alert alert-danger" style={{
@@ -35,14 +29,6 @@ const CompanionTab: React.FC = () => {
         <div className="companion-sidebar" style={{ flex: '0 0 200px' }}>
           <CompanionAvatar size="medium" showStatus={true} />
           
-          <div className="mt-1">
-            <VoiceInteraction onError={handleVoiceError} />
-          </div>
-          
-          <div className="mt-1">
-            <VoiceSelector />
-          </div>
-          
           <div className="companion-status mt-1" style={{
             padding: '0.5rem',
             backgroundColor: 'var(--primary-color)',
@@ -55,14 +41,14 @@ const CompanionTab: React.FC = () => {
         </div>
         
         <div className="companion-main" style={{ flex: '1' }}>
-          <MessageDisplay maxHeight="350px" />
+          <MessageList maxHeight="350px" />
           
           <div className="mt-1">
-            <MessageInput />
+            <TextInput />
           </div>
           
           <div className="mt-1">
-            <SurvivalTips interval={20000} />
+            <AssistantInfo />
           </div>
         </div>
       </div>
