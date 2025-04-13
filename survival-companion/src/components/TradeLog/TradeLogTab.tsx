@@ -1,8 +1,16 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { TradeLogContext, TradeEntry } from '../../contexts/TradeLogContext';
-
 const TradeLogTab: React.FC = () => {
-  const { tradeLog, selectedEntry, selectEntry, exportTradeLog, deleteTradeEntry, updateTradeEntry } = useContext(TradeLogContext);
+  const { tradeLog, selectedEntry, selectEntry, exportTradeLog, deleteTradeEntry, updateTradeEntry, clearTradeLog } = useContext(TradeLogContext);
+  
+  // Debug: Log the trade log entries
+  console.log('TradeLog entries:', tradeLog);
+  
+  // Monitor changes to the trade log
+  useEffect(() => {
+    console.log('TradeLogTab: Trade log updated:', tradeLog);
+  }, [tradeLog]);
+  
   
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -17,21 +25,35 @@ const TradeLogTab: React.FC = () => {
         <div style={{ flex: '1' }}>
           <div className="flex justify-between align-center mb-1">
             <h3>Recent Trades</h3>
-            <button className="button" onClick={() => {
-              const csvContent = exportTradeLog();
-              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.setAttribute('download', 'trade-log.csv');
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}>Export Log</button>
+            <div className="flex" style={{ gap: '0.5rem' }}>
+              <button
+                className="button"
+                style={{ backgroundColor: 'var(--danger-color)' }}
+                onClick={clearTradeLog}
+              >
+                Clear Log
+              </button>
+              <button className="button" onClick={() => {
+                const csvContent = exportTradeLog();
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', 'trade-log.csv');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}>Export Log</button>
+            </div>
           </div>
           
           <div className="card" style={{ backgroundColor: 'var(--primary-color)' }}>
-            {tradeLog.map(entry => (
+            {tradeLog.length === 0 ? (
+              <div className="card mb-1 text-center">
+                <p>No trades found. Complete a trade in the Bartering tab to see it here.</p>
+              </div>
+            ) : (
+              tradeLog.map(entry => (
               <div 
                 key={entry.id} 
                 className="card mb-1" 
@@ -64,7 +86,7 @@ const TradeLogTab: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
         

@@ -1,24 +1,16 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import mockNPCs, { NPC } from '../data/mockNPCs';
 import { InventoryItem } from '../data/mockInventory';
 import { InventoryContext } from './InventoryContext';
 import { CompanionContext } from './CompanionContext';
+import { TradeLogContext } from './TradeLogContext';
 
-interface Trade {
-  id: string;
-  date: string;
-  partner: string;
-  givenItems: { name: string; quantity: number }[];
-  receivedItems: { name: string; quantity: number }[];
-  notes?: string;
-}
 
 interface BarterContextType {
   npcs: NPC[];
   selectedNPC: NPC | null;
   playerOffers: InventoryItem[];
   npcOffers: InventoryItem[];
-  tradeHistory: Trade[];
   selectNPC: (npc: NPC | null) => void;
   addToPlayerOffer: (item: InventoryItem) => void;
   removeFromPlayerOffer: (itemId: string) => void;
@@ -33,7 +25,6 @@ export const BarterContext = createContext<BarterContextType>({
   selectedNPC: null,
   playerOffers: [],
   npcOffers: [],
-  tradeHistory: [],
   selectNPC: () => {},
   addToPlayerOffer: () => {},
   removeFromPlayerOffer: () => {},
@@ -52,14 +43,33 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
   const [selectedNPC, setSelectedNPC] = useState<NPC | null>(null);
   const [playerOffers, setPlayerOffers] = useState<InventoryItem[]>([]);
   const [npcOffers, setNpcOffers] = useState<InventoryItem[]>([]);
-  const [tradeHistory, setTradeHistory] = useState<Trade[]>([]);
-  
-  const { inventory, updateItemQuantity } = useContext(InventoryContext);
+  const { inventory, updateItemQuantity, addItem } = useContext(InventoryContext);
   const { triggerCompanionResponse } = useContext(CompanionContext);
+  const tradeLogContext = useContext(TradeLogContext);
+  const { addTradeEntry } = useContext(TradeLogContext);
+  
+  // Load NPCs from localStorage on mount
+  useEffect(() => {
+    const savedNPCs = localStorage.getItem('survival-npcs');
+    if (savedNPCs) {
+      try {
+        const parsedNPCs = JSON.parse(savedNPCs);
+        setNpcs(parsedNPCs);
+      } catch (error) {
+        console.error('Error parsing saved NPCs:', error);
+      }
+    }
+  }, []);
   
   // Select an NPC for trading
   const selectNPC = (npc: NPC | null) => {
-    setSelectedNPC(npc);
+    if (npc) {
+      // Find the latest version of this NPC from the npcs state
+      const latestNPC = npcs.find(n => n.id === npc.id) || npc;
+      setSelectedNPC(latestNPC);
+    } else {
+      setSelectedNPC(null);
+    }
     clearOffers();
   };
   
@@ -112,22 +122,111 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
     }
     
     // Create a new trade record
-    const newTrade: Trade = {
-      id: Date.now().toString(),
+    const newTrade = {
       date: new Date().toISOString(),
       partner: selectedNPC.name,
       givenItems: playerOffers.map(item => ({ name: item.name, quantity: item.quantity })),
       receivedItems: npcOffers.map(item => ({ name: item.name, quantity: item.quantity }))
     };
     
-    // Add the trade to history
-    setTradeHistory([newTrade, ...tradeHistory]);
+    // Add the trade to the trade log
+    console.log('Adding trade to log:', newTrade);
+    tradeLogContext.addTradeEntry(newTrade);
     
-    // Save trade history to localStorage
-    localStorage.setItem('survival-trade-history', JSON.stringify([newTrade, ...tradeHistory]));
+    // Update player's inventory - remove offered items
+    playerOffers.forEach(item => {
+      const playerItem = inventory.find(i => i.id === item.id);
+      if (playerItem) {
+        if (playerItem.quantity > item.quantity) {
+          // Reduce quantity if player has more than offered
+          updateItemQuantity(item.id, playerItem.quantity - item.quantity);
+        } else {
+          // Remove item if player offered all they had
+          updateItemQuantity(item.id, 0);
+        }
+      }
+    });
     
-    // In a real implementation, we would update the inventory quantities
-    // For now, we'll just clear the offers
+    // Update player's inventory - add received items
+    npcOffers.forEach(item => {
+      addItem({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        description: item.description,
+        icon: item.icon
+      });
+    });
+    
+    // Update NPC's inventory - remove offered items and add player's items
+    if (selectedNPC) {
+      const updatedNpcs = npcs.map(npc => {
+        if (npc.id === selectedNPC.id) {
+          // Create a deep copy of the NPC
+          const updatedNpc = { ...npc };
+          // Create a new inventory array with updated quantities
+          updatedNpc.inventory = npc.inventory.reduce((newInventory, item) => {
+            const offeredItem = npcOffers.find(offered => offered.id === item.id);
+            
+            if (!offeredItem) {
+              // Item wasn't offered, keep it unchanged
+              newInventory.push({...item});
+              return newInventory;
+            }
+            
+            // If the NPC offered some but not all, reduce quantity
+            if (item.quantity > offeredItem.quantity) {
+              newInventory.push({
+                ...item,
+                quantity: item.quantity - offeredItem.quantity
+              });
+            }
+            // If the NPC offered all, don't add it to the new inventory
+            
+            return newInventory;
+          }, [] as InventoryItem[]);
+          
+          // Add items the player offered
+          playerOffers.forEach(playerItem => {
+            // Check if NPC already has this item
+            const existingItemIndex = updatedNpc.inventory.findIndex(
+              item => item.name === playerItem.name && item.category === playerItem.category
+            );
+            
+            if (existingItemIndex >= 0) {
+              // Create a new array with the updated item
+              updatedNpc.inventory = [
+                ...updatedNpc.inventory.slice(0, existingItemIndex),
+                {
+                  ...updatedNpc.inventory[existingItemIndex],
+                  quantity: updatedNpc.inventory[existingItemIndex].quantity + playerItem.quantity
+                },
+                ...updatedNpc.inventory.slice(existingItemIndex + 1)
+              ];
+            } else {
+              // Add new item to NPC's inventory
+              updatedNpc.inventory.push({
+                id: `npc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                name: playerItem.name,
+                category: playerItem.category,
+                quantity: playerItem.quantity,
+                description: playerItem.description || '',
+                icon: playerItem.icon || `${playerItem.category}.png`
+              });
+            }
+          });
+          
+          return updatedNpc;
+        }
+        return npc;
+      });
+      // Update NPCs state and save to localStorage
+      setNpcs(updatedNpcs);
+      localStorage.setItem('survival-npcs', JSON.stringify(updatedNpcs));
+    }
+    
+    
+    // Clear the offers
     clearOffers();
     
     // Trigger companion response
@@ -147,7 +246,6 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
       selectedNPC,
       playerOffers,
       npcOffers,
-      tradeHistory,
       selectNPC,
       addToPlayerOffer,
       removeFromPlayerOffer,

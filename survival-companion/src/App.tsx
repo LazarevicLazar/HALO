@@ -38,16 +38,16 @@ function App() {
   return (
     <CompanionProvider>
       <InventoryProvider>
-        <BarterProvider>
-          <TradeLogProvider>
+        <TradeLogProvider>
+          <BarterProvider>
             <MapProvider>
               <Layout>
                 <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
                 {renderTabContent()}
               </Layout>
             </MapProvider>
-          </TradeLogProvider>
-        </BarterProvider>
+          </BarterProvider>
+        </TradeLogProvider>
       </InventoryProvider>
     </CompanionProvider>
   );

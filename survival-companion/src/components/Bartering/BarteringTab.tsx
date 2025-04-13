@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { InventoryContext } from '../../contexts/InventoryContext';
 import { BarterContext } from '../../contexts/BarterContext';
 import { InventoryItem } from '../../data/mockInventory';
@@ -18,6 +18,19 @@ const BarteringTab: React.FC = () => {
     executeTrade,
     clearOffers
   } = useContext(BarterContext);
+  
+  // Effect to refresh the selected NPC when a trade is executed
+  useEffect(() => {
+    if (selectedNPC) {
+      // Re-select the NPC to get the latest data
+      const currentNPC = npcs.find(npc => npc.id === selectedNPC.id);
+      if (currentNPC && currentNPC !== selectedNPC) {
+        // Only update if the NPC data has changed to avoid infinite loops
+        selectNPC(currentNPC);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [npcs, selectedNPC?.id]); // Only depend on the NPC ID, not the whole object
   
 
   return (
