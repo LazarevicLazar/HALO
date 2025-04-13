@@ -1,6 +1,6 @@
 # H.A.L.O. - Human Assistance Logistics Operator
 
-![H.A.L.O. Logo](public/favicon.ico)
+![H.A.L.O. Logo](survival-companion/public/favicon.ico)
 
 ## Post-Apocalyptic Survival Companion
 
