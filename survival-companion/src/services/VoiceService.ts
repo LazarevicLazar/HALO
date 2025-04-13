@@ -28,10 +28,12 @@ export class VoiceService {
    * @param conversationId Optional ID to track different conversations
    */
   public async streamSentence(sentence: string, conversationId: string = 'default'): Promise<void> {
-    console.log('streamSentence called with:', sentence);
+    console.log('VOICE SERVICE: streamSentence called with:', sentence);
+    console.log('VOICE SERVICE: Conversation ID:', conversationId);
+    console.log('VOICE SERVICE: REACT_APP_ENABLE_VOICE_FEATURES:', process.env.REACT_APP_ENABLE_VOICE_FEATURES);
     
     if (process.env.REACT_APP_ENABLE_VOICE_FEATURES !== 'true') {
-      console.log('Voice features are disabled');
+      console.log('VOICE SERVICE: Voice features are disabled in environment variables');
       return;
     }
     
@@ -47,13 +49,17 @@ export class VoiceService {
     }
     
     // Check if we've already spoken this sentence or a similar one recently
-    if (this.isDuplicateOrSimilar(sentence)) {
-      console.log('Sentence already spoken recently or is similar, skipping:', sentence);
+    const isDuplicate = this.isDuplicateOrSimilar(sentence);
+    console.log('VOICE SERVICE: Is duplicate or similar:', isDuplicate);
+    
+    if (isDuplicate) {
+      console.log('VOICE SERVICE: Sentence already spoken recently or is similar, skipping:', sentence);
       return;
     }
     
     // Add the sentence to the queue
     this.audioQueue.push(sentence);
+    console.log('VOICE SERVICE: Added sentence to queue. New queue length:', this.audioQueue.length);
     console.log('Audio queue length:', this.audioQueue.length);
     
     // Add to processed sentences (limit to 100 entries to prevent memory leaks)
@@ -69,10 +75,10 @@ export class VoiceService {
     
     // If we're not already processing the queue, start processing
     if (!this.processingQueue) {
-      console.log('Starting queue processing');
+      console.log('VOICE SERVICE: Starting queue processing');
       this.processQueue();
     } else {
-      console.log('Queue is already being processed');
+      console.log('VOICE SERVICE: Queue is already being processed');
     }
   }
   
@@ -80,15 +86,16 @@ export class VoiceService {
    * Process the audio queue
    */
   private async processQueue(): Promise<void> {
-    console.log('processQueue called, queue length:', this.audioQueue.length);
+    console.log('VOICE SERVICE: processQueue called, queue length:', this.audioQueue.length);
     
     if (this.audioQueue.length === 0) {
-      console.log('Queue is empty, stopping processing');
+      console.log('VOICE SERVICE: Queue is empty, stopping processing');
       this.processingQueue = false;
       return;
     }
     
     this.processingQueue = true;
+    console.log('VOICE SERVICE: Set processingQueue flag to true');
     
     // Get the next sentence from the queue
     const sentence = this.audioQueue.shift() || '';
@@ -123,11 +130,12 @@ export class VoiceService {
           similarity_boost: 0.5
         }
       };
-      console.log('Request body:', JSON.stringify(requestBody));
-      console.log('Using TARS voice settings:', apiConfig.elevenLabs.voiceSettings ? 'Yes' : 'No (fallback)');
+      console.log('VOICE SERVICE: Request body:', JSON.stringify(requestBody));
+      console.log('VOICE SERVICE: Using TARS voice settings:', apiConfig.elevenLabs.voiceSettings ? 'Yes' : 'No (fallback)');
+      console.log('VOICE SERVICE: ElevenLabs API Key available:', !!apiConfig.elevenLabs.apiKey);
       
       // Make the API request
-      console.log('Making API request...');
+      console.log('VOICE SERVICE: Making API request to ElevenLabs...');
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -138,7 +146,10 @@ export class VoiceService {
         body: JSON.stringify(requestBody)
       });
       
-      console.log('API response status:', response.status);
+      console.log('VOICE SERVICE: API response status:', response.status);
+      // Log a few key headers without using entries() iterator
+      console.log('VOICE SERVICE: API response content-type:', response.headers.get('content-type'));
+      console.log('VOICE SERVICE: API response content-length:', response.headers.get('content-length'));
       
       if (!response.ok) {
         console.error(`ElevenLabs API error: ${response.status}`);
@@ -158,33 +169,49 @@ export class VoiceService {
       // Create a new audio element
       const audioElement = new Audio(audioUrl);
       this.audio = audioElement;
-      console.log('Created audio element');
+      console.log('VOICE SERVICE: Created audio element');
       
       // Set up event listeners
       audioElement.onended = () => {
-        console.log('Audio playback ended');
+        console.log('VOICE SERVICE: Audio playback ended');
         URL.revokeObjectURL(audioUrl);
         this.isStreaming = false;
+        console.log('VOICE SERVICE: Set isStreaming flag to false');
+        console.log('VOICE SERVICE: Continuing to process queue after playback ended');
         this.processQueue();
       };
       
       audioElement.onerror = (error) => {
-        console.error('Error playing audio:', error);
+        console.error('VOICE SERVICE: Error playing audio:', error);
         URL.revokeObjectURL(audioUrl);
         this.isStreaming = false;
+        console.log('VOICE SERVICE: Set isStreaming flag to false due to error');
+        console.log('VOICE SERVICE: Continuing to process queue after playback error');
         this.processQueue();
       };
       
       // Play the audio
-      console.log('Playing audio...');
-      await audioElement.play();
-      console.log('Audio playback started');
+      console.log('VOICE SERVICE: Attempting to play audio...');
+      try {
+        await audioElement.play();
+        console.log('VOICE SERVICE: Audio playback started successfully');
+      } catch (playError) {
+        console.error('VOICE SERVICE: Error starting audio playback:', playError);
+        URL.revokeObjectURL(audioUrl);
+        this.isStreaming = false;
+        this.processQueue();
+      }
       
     } catch (error) {
-      console.error('Error streaming sentence:', error);
+      console.error('VOICE SERVICE: Error in processQueue:', error);
+      console.log('VOICE SERVICE: Error type:', error instanceof Error ? error.name : typeof error);
+      console.log('VOICE SERVICE: Error message:', error instanceof Error ? error.message : String(error));
+      
       this.isStreaming = false;
+      console.log('VOICE SERVICE: Set isStreaming flag to false due to catch block error');
       
       // Continue with the next item in the queue
+      console.log('VOICE SERVICE: Continuing to process queue after error');
       this.processQueue();
     }
   }
@@ -225,33 +252,44 @@ export class VoiceService {
    * Check if a sentence is a duplicate or very similar to recently spoken sentences
    */
   private isDuplicateOrSimilar(sentence: string): boolean {
+    console.log('VOICE SERVICE: Checking if sentence is duplicate or similar:', sentence);
+    console.log('VOICE SERVICE: Current processed sentences count:', this.processedSentences.size);
+    
     // Exact match check
     if (this.processedSentences.has(sentence)) {
+      console.log('VOICE SERVICE: Exact match found in processed sentences');
       return true;
     }
     
     // Normalize the sentence for comparison (lowercase, remove extra spaces)
     const normalizedSentence = sentence.toLowerCase().trim().replace(/\s+/g, ' ');
+    console.log('VOICE SERVICE: Normalized sentence:', normalizedSentence);
+    
     // Check for normalized exact matches
     const processedSentencesArray = Array.from(this.processedSentences);
     for (const processedSentence of processedSentencesArray) {
       const normalizedProcessed = processedSentence.toLowerCase().trim().replace(/\s+/g, ' ');
       
-      
       // If exact match after normalization
       if (normalizedSentence === normalizedProcessed) {
+        console.log('VOICE SERVICE: Normalized exact match found:', normalizedProcessed);
         return true;
       }
       
       // Check if one is a substring of the other (with high overlap)
       if (normalizedSentence.length > 10 && normalizedProcessed.length > 10) {
-        if (normalizedSentence.includes(normalizedProcessed) ||
-            normalizedProcessed.includes(normalizedSentence)) {
+        if (normalizedSentence.includes(normalizedProcessed)) {
+          console.log('VOICE SERVICE: New sentence contains processed sentence:', normalizedProcessed);
+          return true;
+        }
+        if (normalizedProcessed.includes(normalizedSentence)) {
+          console.log('VOICE SERVICE: Processed sentence contains new sentence:', normalizedSentence);
           return true;
         }
       }
     }
     
+    console.log('VOICE SERVICE: No duplicate or similar sentence found');
     return false;
   }
 }

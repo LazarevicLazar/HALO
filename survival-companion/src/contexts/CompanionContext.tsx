@@ -8,6 +8,7 @@ export interface Message {
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  imageData?: string; // Base64 encoded image data
 }
 
 // Context type
@@ -15,6 +16,7 @@ interface CompanionContextType {
   state: 'idle' | 'thinking' | 'responding';
   messages: Message[];
   sendMessage: (message: string) => void;
+  sendImageMessage: (imageData: string) => void; // New function to send image messages
   triggerCompanionResponse: (event: string) => Promise<void>;
   clearConversation: () => void;
   isVoiceEnabled: boolean;
@@ -26,6 +28,7 @@ export const CompanionContext = createContext<CompanionContextType>({
   state: 'idle',
   messages: [],
   sendMessage: () => {},
+  sendImageMessage: () => {}, // Add default implementation
   triggerCompanionResponse: async () => {},
   clearConversation: () => {},
   isVoiceEnabled: false,
@@ -349,11 +352,127 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
     }
   }, []);
   
+  // Send an image message and get a response
+  const sendImageMessage = useCallback(async (imageData: string) => {
+    console.log('Sending image message...');
+    
+    // Add user message with image
+    const userMessage: Message = {
+      role: 'user',
+      content: 'Image captured',
+      timestamp: new Date().toISOString(),
+      imageData: imageData
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setState('thinking');
+    
+    try {
+      // Create a placeholder for the assistant's response
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        isStreaming: true
+      };
+      
+      // Add the placeholder message
+      setMessages(prev => [...prev, assistantMessage]);
+      streamingMessageRef.current = assistantMessage;
+      
+      setState('responding');
+      
+      // Stop any previous speech
+      if (isVoiceEnabled) {
+        voiceService.stopSpeaking();
+      }
+      
+      // Generate streaming response with sentence-level processing for voice
+      await geminiService.analyzeImage(
+        imageData,
+        // Handle each text chunk for display
+        (chunkText) => {
+          // Update the streaming message with each chunk
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            const lastIndex = updatedMessages.length - 1;
+            
+            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+              updatedMessages[lastIndex] = {
+                ...updatedMessages[lastIndex],
+                content: updatedMessages[lastIndex].content + chunkText
+              };
+            }
+            
+            return updatedMessages;
+          });
+        },
+        // Handle each complete sentence for voice with WebSocket-based streaming
+        isVoiceEnabled ? (sentence) => {
+          // Generate a unique conversation ID based on timestamp
+          const conversationId = `conv_${Date.now()}_image`;
+          
+          // Use the optimized WebSocket-based streaming for real-time speech
+          if (sentence.trim().length > 0) {
+            console.log('IMAGE ANALYSIS: Streaming sentence with conversation ID:', conversationId);
+            console.log('IMAGE ANALYSIS: Sentence content:', sentence);
+            console.log('IMAGE ANALYSIS: Voice enabled:', isVoiceEnabled);
+            
+            // Process the sentence for optimal TARS voice delivery
+            const processedSentence = processTARSResponse(sentence);
+            console.log('IMAGE ANALYSIS: Processed sentence:', processedSentence);
+            
+            // Stream the sentence
+            voiceService.streamSentence(processedSentence, conversationId);
+          }
+        } : undefined
+      );
+      
+      // Mark the message as no longer streaming
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        const lastIndex = updatedMessages.length - 1;
+        
+        if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+          updatedMessages[lastIndex] = {
+            ...updatedMessages[lastIndex],
+            isStreaming: false
+          };
+        }
+        
+        return updatedMessages;
+      });
+      
+      streamingMessageRef.current = null;
+      
+      setState('idle');
+    } catch (error) {
+      console.error('Error processing image:', error);
+      
+      // Add error message
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error while analyzing the image.',
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => {
+        // Remove the streaming message if it exists
+        const filteredMessages = prev.filter(msg => !msg.isStreaming);
+        return [...filteredMessages, errorMessage];
+      });
+      
+      streamingMessageRef.current = null;
+      setState('idle');
+    }
+  }, [isVoiceEnabled, processTARSResponse]);
+  
   return (
     <CompanionContext.Provider value={{
       state,
       messages,
       sendMessage,
+      sendImageMessage,
       clearConversation,
       triggerCompanionResponse,
       isVoiceEnabled,

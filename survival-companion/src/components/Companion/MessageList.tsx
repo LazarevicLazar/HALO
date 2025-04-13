@@ -84,13 +84,28 @@ const MessageList: React.FC<MessageListProps> = ({
                 ...getMessageStyle(message.role)
               }}
             >
-              <div 
+              <div
                 className="message-content"
-                style={{ 
+                style={{
                   padding: '0.75rem',
                   whiteSpace: 'pre-wrap'
                 }}
               >
+                {/* Display image if present */}
+                {message.imageData && (
+                  <div className="message-image" style={{ marginBottom: '0.5rem' }}>
+                    <img
+                      src={message.imageData}
+                      alt="Captured"
+                      style={{
+                        maxWidth: '100%',
+                        borderRadius: '4px',
+                        maxHeight: '200px'
+                      }}
+                    />
+                  </div>
+                )}
+                
                 {message.isStreaming ? (
                   <>
                     {message.content}
