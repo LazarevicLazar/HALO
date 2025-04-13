@@ -45,6 +45,12 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, setActiveTab }) => {
         >
           Encyclopedia
         </button>
+        <button
+          className={`tab ${activeTab === "emergencyBeacon" ? "active" : ""}`}
+          onClick={() => setActiveTab("emergencyBeacon")}
+        >
+          Emergency Beacon
+        </button>
       </div>
     </nav>
   );

@@ -8,6 +8,7 @@ import BarteringTab from "./components/Bartering/BarteringTab";
 import TradeLogTab from "./components/TradeLog/TradeLogTab";
 import EnhancedMapTab from "./components/Map/EnhancedMapTab";
 import EncyclopediaTab from "./components/Encyclopedia/EncyclopediaTab";
+import EmergencyBeaconTab from "./components/EmergencyBeacon/EmergencyBeaconTab";
 
 // Context Providers
 import { CompanionProvider } from "./contexts/CompanionContext";
@@ -33,6 +34,8 @@ function App() {
         return <EnhancedMapTab />;
       case "encyclopedia":
         return <EncyclopediaTab />;
+      case "emergencyBeacon":
+        return <EmergencyBeaconTab />;
       default:
         return <CompanionTab />;
     }
