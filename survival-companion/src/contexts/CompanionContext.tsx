@@ -1,10 +1,13 @@
-import React, { createContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useCallback, ReactNode, useRef, useEffect } from 'react';
+import geminiService from '../services/GeminiService';
+import voiceService from '../services/VoiceService';
 
 // Message interface
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  isStreaming?: boolean;
 }
 
 // Context type
@@ -14,6 +17,8 @@ interface CompanionContextType {
   sendMessage: (message: string) => void;
   triggerCompanionResponse: (event: string) => Promise<void>;
   clearConversation: () => void;
+  isVoiceEnabled: boolean;
+  setIsVoiceEnabled: (enabled: boolean) => void;
 }
 
 // Create context with default values
@@ -22,13 +27,44 @@ export const CompanionContext = createContext<CompanionContextType>({
   messages: [],
   sendMessage: () => {},
   triggerCompanionResponse: async () => {},
-  clearConversation: () => {}
+  clearConversation: () => {},
+  isVoiceEnabled: false,
+  setIsVoiceEnabled: () => {}
 });
 
 // Provider component
 export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [state, setState] = useState<'idle' | 'thinking' | 'responding'>('idle');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(
+    process.env.REACT_APP_ENABLE_VOICE_FEATURES === 'true'
+  );
+  
+  // Log voice settings on mount
+  useEffect(() => {
+    console.log('CompanionContext initialized');
+    console.log('Voice features enabled in context:', isVoiceEnabled);
+    console.log('REACT_APP_ENABLE_VOICE_FEATURES:', process.env.REACT_APP_ENABLE_VOICE_FEATURES);
+  }, [isVoiceEnabled]);
+  
+  // Process TARS responses for optimal voice delivery
+  const processTARSResponse = useCallback((text: string): string => {
+    // Ensure pauses after sarcastic remarks by adding line breaks
+    let processed = text.replace(/\.("|')?(\s*)([A-Z])/g, '.$1\n\n$3');
+    
+    // Ensure proper pauses for deadpan delivery
+    processed = processed.replace(/\?(\s*)([A-Z])/g, '?\n$2');
+    
+    // Remove any asterisks or other special characters that might be spoken literally
+    processed = processed.replace(/\*/g, '');
+    processed = processed.replace(/\_/g, '');
+    
+    console.log('Processed TARS response for voice delivery');
+    return processed;
+  }, []);
+  
+  // Reference to the current streaming message
+  const streamingMessageRef = useRef<Message | null>(null);
   
   // Generate a response based on user input
   const getResponse = (message: string): string => {
@@ -75,22 +111,99 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
     setMessages(prev => [...prev, userMessage]);
     setState('thinking');
     
-    // Simulate processing delay
-    setTimeout(() => {
-      // Generate response
-      const responseText = getResponse(message);
-      
-      // Add assistant message
+    try {
+      // Create a placeholder for the assistant's response
       const assistantMessage: Message = {
         role: 'assistant',
-        content: responseText,
+        content: '',
+        timestamp: new Date().toISOString(),
+        isStreaming: true
+      };
+      
+      // Add the placeholder message
+      setMessages(prev => [...prev, assistantMessage]);
+      streamingMessageRef.current = assistantMessage;
+      
+      setState('responding');
+      
+      // Stop any previous speech
+      if (isVoiceEnabled) {
+        voiceService.stopSpeaking();
+      }
+      
+      // Generate streaming response with sentence-level processing for voice
+      await geminiService.generateStreamingResponse(
+        message,
+        // Handle each text chunk for display
+        (chunkText) => {
+          // Update the streaming message with each chunk
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            const lastIndex = updatedMessages.length - 1;
+            
+            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+              updatedMessages[lastIndex] = {
+                ...updatedMessages[lastIndex],
+                content: updatedMessages[lastIndex].content + chunkText
+              };
+            }
+            
+            return updatedMessages;
+          });
+        },
+        // Handle each complete sentence for voice with WebSocket-based streaming
+        isVoiceEnabled ? (sentence) => {
+          // Generate a unique conversation ID based on timestamp
+          const conversationId = `conv_${Date.now()}`;
+          
+          // Use the optimized WebSocket-based streaming for real-time speech
+          if (sentence.trim().length > 0) {
+            console.log('Streaming sentence with conversation ID:', conversationId);
+            // Process the sentence for optimal TARS voice delivery
+            const processedSentence = processTARSResponse(sentence);
+            voiceService.streamSentence(processedSentence, conversationId);
+          }
+        } : undefined
+      );
+      
+      // Mark the message as no longer streaming
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        const lastIndex = updatedMessages.length - 1;
+        
+        if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+          updatedMessages[lastIndex] = {
+            ...updatedMessages[lastIndex],
+            isStreaming: false
+          };
+        }
+        
+        return updatedMessages;
+      });
+      
+      streamingMessageRef.current = null;
+      
+      setState('idle');
+    } catch (error) {
+      console.error('Error processing message:', error);
+      
+      // Add error message
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error while processing your request.',
         timestamp: new Date().toISOString()
       };
       
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => {
+        // Remove the streaming message if it exists
+        const filteredMessages = prev.filter(msg => !msg.isStreaming);
+        return [...filteredMessages, errorMessage];
+      });
+      
+      streamingMessageRef.current = null;
       setState('idle');
-    }, 500);
-  }, []);
+    }
+  }, [isVoiceEnabled]);
   // Clear conversation history
   const clearConversation = useCallback(() => {
     setMessages([]);
@@ -114,20 +227,118 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         return; // Don't respond to unknown events
     }
     
-    // Generate a simple response based on the event
-    const responseText = `I see you've ${eventType.replace('_', ' ')} ${eventData}. That's a good step.`;
+    setState('thinking');
     
-    // Add assistant message
-    const assistantMessage: Message = {
-      role: 'assistant',
-      content: responseText,
-      timestamp: new Date().toISOString()
-    };
-    
-    setMessages(prev => [...prev, assistantMessage]);
-    setState('idle');
-  }, []);
+    try {
+      // Generate a prompt based on the event
+      const prompt = `The user has ${eventType.replace('_', ' ')} ${eventData}. Provide a brief, helpful response about this action in the context of a post-apocalyptic survival scenario.`;
+      
+      // Create a placeholder for the assistant's response
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        isStreaming: true
+      };
+      
+      // Add the placeholder message
+      setMessages(prev => [...prev, assistantMessage]);
+      streamingMessageRef.current = assistantMessage;
+      
+      setState('responding');
+      
+      // Stop any previous speech
+      if (isVoiceEnabled) {
+        voiceService.stopSpeaking();
+      }
+      
+      // Generate streaming response with sentence-level processing for voice
+      await geminiService.generateStreamingResponse(
+        prompt,
+        // Handle each text chunk for display
+        (chunkText) => {
+          // Update the streaming message with each chunk
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            const lastIndex = updatedMessages.length - 1;
+            
+            if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+              updatedMessages[lastIndex] = {
+                ...updatedMessages[lastIndex],
+                content: updatedMessages[lastIndex].content + chunkText
+              };
+            }
+            
+            return updatedMessages;
+          });
+        },
+        // Handle each complete sentence for voice with WebSocket-based streaming
+        isVoiceEnabled ? (sentence) => {
+          // Generate a unique conversation ID based on timestamp
+          const conversationId = `conv_${Date.now()}_event_${eventType}`;
+          
+          // Use the optimized WebSocket-based streaming for real-time speech
+          if (sentence.trim().length > 0) {
+            console.log('Streaming event sentence with conversation ID:', conversationId);
+            // Process the sentence for optimal TARS voice delivery
+            const processedSentence = processTARSResponse(sentence);
+            voiceService.streamSentence(processedSentence, conversationId);
+          }
+        } : undefined
+      );
+      
+      // Mark the message as no longer streaming
+      setMessages(prev => {
+        const updatedMessages = [...prev];
+        const lastIndex = updatedMessages.length - 1;
+        
+        if (lastIndex >= 0 && updatedMessages[lastIndex].isStreaming) {
+          updatedMessages[lastIndex] = {
+            ...updatedMessages[lastIndex],
+            isStreaming: false
+          };
+        }
+        
+        return updatedMessages;
+      });
+      
+      streamingMessageRef.current = null;
+      
+      setState('idle');
+    } catch (error) {
+      console.error('Error generating event response:', error);
+      
+      // Add error message if needed
+      if (streamingMessageRef.current) {
+        setMessages(prev => {
+          // Remove the streaming message
+          const filteredMessages = prev.filter(msg => !msg.isStreaming);
+          return [...filteredMessages, {
+            role: 'assistant',
+            content: 'I apologize, but I encountered an error while processing this event.',
+            timestamp: new Date().toISOString()
+          }];
+        });
+        
+        streamingMessageRef.current = null;
+      }
+      
+      setState('idle');
+    }
+  }, [isVoiceEnabled]);
   
+  
+  // Toggle voice features
+  const handleSetIsVoiceEnabled = useCallback((enabled: boolean) => {
+    console.log('Setting voice enabled to:', enabled);
+    setIsVoiceEnabled(enabled);
+    if (!enabled) {
+      console.log('Voice disabled, stopping speech');
+      voiceService.stopSpeaking();
+    } else {
+      console.log('Voice enabled');
+    }
+  }, []);
   
   return (
     <CompanionContext.Provider value={{
@@ -135,7 +346,9 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
       messages,
       sendMessage,
       clearConversation,
-      triggerCompanionResponse
+      triggerCompanionResponse,
+      isVoiceEnabled,
+      setIsVoiceEnabled: handleSetIsVoiceEnabled
     }}>
       {children}
     </CompanionContext.Provider>

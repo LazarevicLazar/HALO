@@ -91,7 +91,32 @@ const MessageList: React.FC<MessageListProps> = ({
                   whiteSpace: 'pre-wrap'
                 }}
               >
-                {message.content}
+                {message.isStreaming ? (
+                  <>
+                    {message.content}
+                    <span
+                      className="streaming-indicator"
+                      style={{
+                        display: 'inline-block',
+                        width: '0.5rem',
+                        height: '1rem',
+                        backgroundColor: 'var(--accent-color)',
+                        marginLeft: '0.25rem',
+                        animation: 'blink 1s infinite'
+                      }}
+                    ></span>
+                    <style>
+                      {`
+                        @keyframes blink {
+                          0%, 100% { opacity: 1; }
+                          50% { opacity: 0; }
+                        }
+                      `}
+                    </style>
+                  </>
+                ) : (
+                  message.content
+                )}
               </div>
               <div 
                 className="message-timestamp"
