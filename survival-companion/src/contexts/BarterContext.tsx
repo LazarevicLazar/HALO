@@ -286,21 +286,21 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
     // Add the trade to the trade log
     tradeLogContext.addTradeEntry(newTrade);
 
-    // Update player's inventory - remove offered items
+    // Update player's inventory - remove offered items (silently)
     playerOffers.forEach((item) => {
       const playerItem = inventory.find((i) => i.id === item.id);
       if (playerItem) {
         if (playerItem.quantity > item.quantity) {
           // Reduce quantity if player has more than offered
-          updateItemQuantity(item.id, playerItem.quantity - item.quantity);
+          updateItemQuantity(item.id, playerItem.quantity - item.quantity, true);
         } else {
           // Remove item if player offered all they had
-          updateItemQuantity(item.id, 0);
+          updateItemQuantity(item.id, 0, true);
         }
       }
     });
 
-    // Update player's inventory - add received items
+    // Update player's inventory - add received items (silently)
     receivedItems.forEach((item) => {
       addItem({
         name: item.name,
@@ -308,7 +308,7 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
         quantity: item.quantity,
         description: item.description,
         icon: item.icon,
-      });
+      }, true);
     });
   };
 
@@ -672,21 +672,21 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
     console.log("Adding trade to log:", newTrade);
     tradeLogContext.addTradeEntry(newTrade);
 
-    // Update player's inventory - remove offered items
+    // Update player's inventory - remove offered items (silently)
     playerOffers.forEach((item) => {
       const playerItem = inventory.find((i) => i.id === item.id);
       if (playerItem) {
         if (playerItem.quantity > item.quantity) {
           // Reduce quantity if player has more than offered
-          updateItemQuantity(item.id, playerItem.quantity - item.quantity);
+          updateItemQuantity(item.id, playerItem.quantity - item.quantity, true);
         } else {
           // Remove item if player offered all they had
-          updateItemQuantity(item.id, 0);
+          updateItemQuantity(item.id, 0, true);
         }
       }
     });
 
-    // Update player's inventory - add received items
+    // Update player's inventory - add received items (silently)
     npcOffers.forEach((item) => {
       addItem({
         name: item.name,
@@ -694,7 +694,7 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
         quantity: item.quantity,
         description: item.description,
         icon: item.icon,
-      });
+      }, true);
     });
 
     // Update NPC's inventory - remove offered items and add player's items

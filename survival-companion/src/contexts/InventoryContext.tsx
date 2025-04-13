@@ -4,9 +4,9 @@ import { CompanionContext } from './CompanionContext';
 
 interface InventoryContextType {
   inventory: InventoryItem[];
-  addItem: (item: Partial<InventoryItem>) => void;
-  removeItem: (itemId: string) => void;
-  updateItemQuantity: (itemId: string, newQuantity: number) => void;
+  addItem: (item: Partial<InventoryItem>, silent?: boolean) => void;
+  removeItem: (itemId: string, silent?: boolean) => void;
+  updateItemQuantity: (itemId: string, newQuantity: number, silent?: boolean) => void;
   getItemsByCategory: (category: string) => InventoryItem[];
   getCategories: () => string[];
 }
@@ -46,7 +46,7 @@ export const InventoryProvider: React.FC<InventoryProviderProps> = ({ children }
   }, [inventory]);
   
   // Add a new item to inventory
-  const addItem = (item: Partial<InventoryItem>) => {
+  const addItem = (item: Partial<InventoryItem>, silent: boolean = false) => {
     if (!item.name || !item.category) {
       console.error('Item must have a name and category');
       return;
@@ -65,7 +65,9 @@ export const InventoryProvider: React.FC<InventoryProviderProps> = ({ children }
         quantity: updatedInventory[existingItemIndex].quantity + (item.quantity || 1)
       };
       setInventory(updatedInventory);
-      triggerCompanionResponse(`inventory_updated:${item.name}`);
+      if (!silent) {
+        triggerCompanionResponse(`inventory_updated:${item.name}`);
+      }
     } else {
       // Add new item
       const newItem: InventoryItem = {
@@ -77,33 +79,38 @@ export const InventoryProvider: React.FC<InventoryProviderProps> = ({ children }
         icon: item.icon || `${item.category}.png`
       };
       setInventory([...inventory, newItem]);
-      triggerCompanionResponse(`inventory_added:${item.name}`);
+      if (!silent) {
+        triggerCompanionResponse(`inventory_added:${item.name}`);
+      }
     }
   };
   
   // Remove an item from inventory
-  const removeItem = (itemId: string) => {
+  const removeItem = (itemId: string, silent: boolean = false) => {
     const itemToRemove = inventory.find(item => item.id === itemId);
     if (!itemToRemove) return;
     
     setInventory(inventory.filter(item => item.id !== itemId));
-    triggerCompanionResponse(`inventory_removed:${itemToRemove.name}`);
+    if (!silent) {
+      triggerCompanionResponse(`inventory_removed:${itemToRemove.name}`);
+    }
   };
   
   // Update an item's quantity
-  const updateItemQuantity = (itemId: string, newQuantity: number) => {
+  const updateItemQuantity = (itemId: string, newQuantity: number, silent: boolean = false) => {
     if (newQuantity <= 0) {
-      removeItem(itemId);
+      // Call removeItem which will trigger its own companion response if not silent
+      removeItem(itemId, silent);
       return;
     }
     
-    const updatedInventory = inventory.map(item => 
+    const updatedInventory = inventory.map(item =>
       item.id === itemId ? { ...item, quantity: newQuantity } : item
     );
     setInventory(updatedInventory);
     
     const updatedItem = updatedInventory.find(item => item.id === itemId);
-    if (updatedItem) {
+    if (updatedItem && !silent) {
       triggerCompanionResponse(`inventory_updated:${updatedItem.name}`);
     }
   };

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, ReactNode, useRef, useEffect } from 'react';
 import geminiService from '../services/GeminiService';
 import voiceService from '../services/VoiceService';
+import { v4 as uuidv4 } from 'uuid';
 
 // Message interface
 export interface Message {
@@ -42,6 +43,9 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(
     process.env.REACT_APP_ENABLE_VOICE_FEATURES === 'true'
   );
+  
+  // Track recent events to prevent duplicates
+  const recentEventsRef = useRef<Map<string, number>>(new Map());
   
   // Log voice settings on mount
   useEffect(() => {
@@ -243,6 +247,28 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         return; // Don't respond to unknown events
     }
     
+    // Create a unique key for this event type + data combination
+    const eventKey = `${eventType}:${eventData}`;
+    
+    // Check if this exact event was triggered recently (within 1 second)
+    const now = Date.now();
+    const lastTriggered = recentEventsRef.current.get(eventKey);
+    
+    if (lastTriggered && now - lastTriggered < 1000) {
+      console.log(`Skipping duplicate event triggered too quickly: ${eventKey}`);
+      return;
+    }
+    
+    // Update the last triggered time for this event
+    recentEventsRef.current.set(eventKey, now);
+    
+    // Clean up old events (older than 5 seconds)
+    recentEventsRef.current.forEach((timestamp, key) => {
+      if (now - timestamp > 5000) {
+        recentEventsRef.current.delete(key);
+      }
+    });
+    
     setState('thinking');
     
     try {
@@ -291,7 +317,8 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         // Handle each complete sentence for voice with WebSocket-based streaming
         isVoiceEnabled ? (sentence) => {
           // Generate a single conversation ID for the entire event response
-          const eventConversationId = `conv_${Date.now()}_event_${eventType}`;
+          // Use a UUID instead of timestamp to ensure uniqueness
+          const eventConversationId = `conv_${uuidv4()}_event_${eventType}`;
           
           // Use the optimized WebSocket-based streaming for real-time speech
           if (sentence.trim().length > 0) {
@@ -414,7 +441,8 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         // Handle each complete sentence for voice with WebSocket-based streaming
         isVoiceEnabled ? (sentence) => {
           // Generate a single conversation ID for the entire image analysis
-          const imageConversationId = `conv_${Date.now()}_image`;
+          // Use a UUID instead of timestamp to ensure uniqueness
+          const imageConversationId = `conv_${uuidv4()}_image`;
           
           // Use the optimized WebSocket-based streaming for real-time speech
           if (sentence.trim().length > 0) {
