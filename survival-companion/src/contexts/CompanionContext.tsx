@@ -49,17 +49,26 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
   
   // Process TARS responses for optimal voice delivery
   const processTARSResponse = useCallback((text: string): string => {
-    // Ensure pauses after sarcastic remarks by adding line breaks
-    let processed = text.replace(/\.("|')?(\s*)([A-Z])/g, '.$1\n\n$3');
-    
-    // Ensure proper pauses for deadpan delivery
-    processed = processed.replace(/\?(\s*)([A-Z])/g, '?\n$2');
-    
     // Remove any asterisks or other special characters that might be spoken literally
-    processed = processed.replace(/\*/g, '');
-    processed = processed.replace(/\_/g, '');
+    let processed = text.replace(/\*/g, '').replace(/\_/g, '');
     
-    console.log('Processed TARS response for voice delivery');
+    // Instead of adding line breaks, use proper punctuation that ElevenLabs understands
+    
+    // Ensure proper pauses after sentences by adding a period if needed
+    processed = processed.replace(/([.!?])("|')?(\s*)([A-Z])/g, '$1$2. $4');
+    
+    // Handle ellipses for hesitation by ensuring proper spacing
+    processed = processed.replace(/\.\.\.(\s*)([a-zA-Z])/g, '... $2');
+    
+    // Handle dashes for interruptions by ensuring proper spacing
+    processed = processed.replace(/—(\s*)([a-zA-Z])/g, '— $2');
+    
+    // Add slight pauses between short, punchy sentences for emphasis using periods
+    processed = processed.replace(/\.\s+([\w\s]{1,20}\.)\s+/g, '. $1. ');
+    
+    // Log the processed text for debugging
+    console.log('Processed first-person response:', processed);
+    
     return processed;
   }, []);
   

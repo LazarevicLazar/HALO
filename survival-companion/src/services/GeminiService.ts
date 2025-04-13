@@ -34,10 +34,18 @@ export class GeminiService {
   
   public async generateResponse(prompt: string): Promise<string> {
     try {
-      // Append instructions about avoiding special characters for voice synthesis
+      // Append instructions about using emotion techniques for voice synthesis
       const enhancedPrompt = `${prompt}
 
-IMPORTANT: Do not use special characters like asterisks, underscores, or other markdown formatting in your response as they will be spoken literally by the voice system. Use sentence structure and word choice to convey emphasis instead.`;
+IMPORTANT: Always speak in first person. Never refer to yourself by name or in the third person.
+
+Format your response to convey your personality and emotions through voice synthesis:
+1. Use ellipses (...) for hesitation: "I'm... calculating your chances of survival."
+2. Use dashes (—) for interruptions: "That plan might work—if you enjoy explosions."
+3. Use short, punchy sentences for emphasis: "Brilliant plan. Truly inspired. Almost as good as walking into the mutant nest."
+4. Use dry, deadpan delivery: "I calculate your survival chances at 32%. Not great. Not terrible. Just... underwhelming."
+
+Do not use special characters like asterisks or underscores as they will be spoken literally.`;
       
       const response = await this.chat.sendMessage({
         message: enhancedPrompt,
@@ -62,10 +70,18 @@ IMPORTANT: Do not use special characters like asterisks, underscores, or other m
     onSentence?: (sentence: string) => void
   ): Promise<string> {
     try {
-      // Append instructions about avoiding special characters for voice synthesis
+      // Append instructions about using emotion techniques for voice synthesis
       const enhancedPrompt = `${prompt}
 
-IMPORTANT: Do not use special characters like asterisks, underscores, or other markdown formatting in your response as they will be spoken literally by the voice system. Use sentence structure and word choice to convey emphasis instead.`;
+IMPORTANT: Always speak in first person. Never refer to yourself by name or in the third person.
+
+Format your response to convey your personality and emotions through voice synthesis:
+1. Use ellipses (...) for hesitation: "I'm... calculating your chances of survival."
+2. Use dashes (—) for interruptions: "That plan might work—if you enjoy explosions."
+3. Use short, punchy sentences for emphasis: "Brilliant plan. Truly inspired. Almost as good as walking into the mutant nest."
+4. Use dry, deadpan delivery: "I calculate your survival chances at 32%. Not great. Not terrible. Just... underwhelming."
+
+Do not use special characters like asterisks or underscores as they will be spoken literally.`;
       
       const stream = await this.chat.sendMessageStream({
         message: enhancedPrompt,
