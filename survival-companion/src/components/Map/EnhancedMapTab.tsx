@@ -491,40 +491,44 @@ const EnhancedMapTab: React.FC = () => {
     <div className="card">
       <h2 className="card-title">Survival Map</h2>
 
-      <div className="flex" style={{ gap: "1rem" }}>
-        <div style={{ flex: "3" }}>
-          <div ref={mapRef} className="map-container"></div>
+      <div className="map-section">
+        {/* Map Container */}
+        <div ref={mapRef} className="map-container"></div>
 
-          <div className="mt-1">
-            <MapControls
-              onAddMarker={(marker) => {
-                addMarker(marker);
-                triggerCompanionResponse(`map_marker_added:${marker.name}`);
-              }}
-              onAddArea={handleAddArea}
-              onFindLocation={handleFindLocation}
-              isDrawing={isDrawing}
-              setIsDrawing={setIsDrawing}
-              drawingMode={drawingMode}
-              setDrawingMode={setDrawingMode}
-              drawingPoints={drawingPoints}
-              setDrawingPoints={setDrawingPoints}
-            />
-          </div>
+        {/* Map Legend - Now below the map */}
+        <div className="map-legend-container">
+          <MapLegend />
         </div>
 
-        <div style={{ flex: "1" }}>
-          <MapLegend />
-
-          {selectedMarker && (
-            <MarkerDetails
-              marker={selectedMarker}
-              onEdit={updateMarker}
-              onDelete={removeMarker}
-            />
-          )}
+        {/* Map Controls */}
+        <div className="mt-1">
+          <MapControls
+            onAddMarker={(marker) => {
+              addMarker(marker);
+              triggerCompanionResponse(`map_marker_added:${marker.name}`);
+            }}
+            onAddArea={handleAddArea}
+            onFindLocation={handleFindLocation}
+            isDrawing={isDrawing}
+            setIsDrawing={setIsDrawing}
+            drawingMode={drawingMode}
+            setDrawingMode={setDrawingMode}
+            drawingPoints={drawingPoints}
+            setDrawingPoints={setDrawingPoints}
+          />
         </div>
       </div>
+
+      {/* Selected Marker Details */}
+      {selectedMarker && (
+        <div className="marker-details-container mt-1">
+          <MarkerDetails
+            marker={selectedMarker}
+            onEdit={updateMarker}
+            onDelete={removeMarker}
+          />
+        </div>
+      )}
 
       {/* Marker Form Modal */}
       {showMarkerForm && (

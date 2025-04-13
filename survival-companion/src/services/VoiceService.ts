@@ -1,340 +1,463 @@
-import apiConfig from '../config/apiConfig';
+import apiConfig from "../config/apiConfig";
+import { v4 as uuidv4 } from "uuid";
 
 // Custom event for speech status changes
-export const SPEECH_STATUS_EVENT = 'speech-status-change';
-
-// Custom event for audio ready status
-export const AUDIO_READY_EVENT = 'audio-ready-change';
+export const SPEECH_STATUS_EVENT = "speech-status-change";
 
 export class VoiceService {
   private static instance: VoiceService;
   private audio: HTMLAudioElement | null = null;
   private isStreaming: boolean = false;
-  private audioQueue: {text: string, conversationId: string}[] = []; // Store both text and conversation ID
-  private processedSentences: Map<string, Set<string>> = new Map(); // Track processed sentences by conversation ID
+  private audioQueue: { id: string; text: string }[] = [];
+  private processedSentences: Set<string> = new Set(); // Track recently spoken sentences
   private processingQueue: boolean = false;
-  private lastConversationId: string = ''; // Track conversation ID to reset on new conversations
-  private currentAudioPromise: Promise<void> | null = null; // Track current audio playback promise
-  private audioPlaybackLock: boolean = false; // Additional lock for audio playback
-  private audioReadyForConversation: Map<string, boolean> = new Map(); // Track if audio is ready for a conversation
-  
+  private lastConversationId: string = ""; // Track conversation ID to reset on new conversations
+  private audioPlayPromise: Promise<void> | null = null; // Track current audio play promise
+  private isStopping: boolean = false; // Flag to track if we're in the process of stopping
+  private activeConversations: Set<string> = new Set(); // Track active conversations
+  private recentlyPlayedTexts: Map<string, number> = new Map(); // Track recently played texts with timestamps
+
   private constructor() {
-    console.log('ElevenLabs service initialized');
-    console.log('Voice features enabled:', process.env.REACT_APP_ENABLE_VOICE_FEATURES === 'true');
-    console.log('ElevenLabs API key available:', !!apiConfig.elevenLabs.apiKey);
+    console.log("ElevenLabs service initialized");
+    console.log(
+      "Voice features enabled:",
+      process.env.REACT_APP_ENABLE_VOICE_FEATURES === "true"
+    );
+    console.log("ElevenLabs API key available:", !!apiConfig.elevenLabs.apiKey);
+
+    // Set up a cleanup interval for the recentlyPlayedTexts map
+    setInterval(() => this.cleanupRecentlyPlayed(), 60000); // Clean up every minute
   }
-  
+
   public static getInstance(): VoiceService {
     if (!VoiceService.instance) {
       VoiceService.instance = new VoiceService();
     }
     return VoiceService.instance;
   }
-  
+
+  /**
+   * Clean up the recently played texts map by removing entries older than 10 seconds
+   */
+  private cleanupRecentlyPlayed(): void {
+    const now = Date.now();
+    const expiryTime = 10000; // 10 seconds
+
+    // Convert Map entries to array and then iterate
+    Array.from(this.recentlyPlayedTexts.entries()).forEach(
+      ([text, timestamp]) => {
+        if (now - timestamp > expiryTime) {
+          this.recentlyPlayedTexts.delete(text);
+        }
+      }
+    );
+
+    console.log(
+      "Cleaned up recently played texts. Remaining:",
+      this.recentlyPlayedTexts.size
+    );
+  }
+
   /**
    * Stream a sentence using the ElevenLabs API
    * @param sentence The text to speak
    * @param conversationId Optional ID to track different conversations
-   * @param delayDisplay Whether to delay displaying the message until audio is ready
-   * @returns A promise that resolves when the sentence is queued
    */
-  public async streamSentence(sentence: string, conversationId: string = 'default', delayDisplay: boolean = false): Promise<void> {
-    console.log('VOICE SERVICE: streamSentence called with:', sentence);
-    console.log('VOICE SERVICE: Conversation ID:', conversationId);
-    console.log('VOICE SERVICE: REACT_APP_ENABLE_VOICE_FEATURES:', process.env.REACT_APP_ENABLE_VOICE_FEATURES);
-    
-    if (process.env.REACT_APP_ENABLE_VOICE_FEATURES !== 'true') {
-      console.log('VOICE SERVICE: Voice features are disabled in environment variables');
+  public async streamSentence(
+    sentence: string,
+    conversationId: string = "default"
+  ): Promise<void> {
+    console.log("VOICE SERVICE: streamSentence called with:", sentence);
+    console.log("VOICE SERVICE: Conversation ID:", conversationId);
+    console.log(
+      "VOICE SERVICE: REACT_APP_ENABLE_VOICE_FEATURES:",
+      process.env.REACT_APP_ENABLE_VOICE_FEATURES
+    );
+
+    if (process.env.REACT_APP_ENABLE_VOICE_FEATURES !== "true") {
+      console.log(
+        "VOICE SERVICE: Voice features are disabled in environment variables"
+      );
       return;
     }
-    
+
+    // Skip empty sentences
+    if (!sentence.trim()) {
+      console.log("VOICE SERVICE: Empty sentence, skipping");
+      return;
+    }
+
+    // Check if this exact text was recently played (within the last 10 seconds)
+    const normalizedSentence = sentence.toLowerCase().trim();
+    const now = Date.now();
+    const recentPlayTime = this.recentlyPlayedTexts.get(normalizedSentence);
+
+    if (recentPlayTime && now - recentPlayTime < 10000) {
+      console.log(
+        "VOICE SERVICE: This exact text was played very recently, skipping to prevent duplication:",
+        sentence
+      );
+      console.log(
+        "VOICE SERVICE: Time since last play:",
+        now - recentPlayTime,
+        "ms"
+      );
+      return;
+    }
+
+    // Add to recently played texts
+    this.recentlyPlayedTexts.set(normalizedSentence, now);
+
+    // Debounce rapid calls with the same sentence
+    if (this.isDuplicateOrSimilar(sentence)) {
+      console.log(
+        "VOICE SERVICE: Sentence already spoken recently or is similar, skipping:",
+        sentence
+      );
+      return;
+    }
+
     // Check if this is a new conversation
     if (conversationId !== this.lastConversationId) {
-      console.log('New conversation detected, clearing queue and history');
-      console.log('Previous conversation ID:', this.lastConversationId);
-      console.log('New conversation ID:', conversationId);
+      console.log("New conversation detected, clearing queue and history");
+      console.log("Previous conversation ID:", this.lastConversationId);
+      console.log("New conversation ID:", conversationId);
       this.lastConversationId = conversationId;
+
+      // Clear previous conversations
       this.clearAllSpeech();
-      
-      // Initialize processed sentences set for this conversation
-      if (!this.processedSentences.has(conversationId)) {
-        this.processedSentences.set(conversationId, new Set());
-      }
+
+      // Add this conversation to active conversations
+      this.activeConversations.add(conversationId);
     } else {
-      console.log('Continuing conversation:', conversationId);
+      console.log("Continuing conversation:", conversationId);
+
+      // If this conversation isn't active anymore (was stopped), don't process
+      if (!this.activeConversations.has(conversationId)) {
+        console.log(
+          "VOICE SERVICE: Conversation was stopped, not processing:",
+          conversationId
+        );
+        return;
+      }
     }
-    
-    // Check if we've already spoken this sentence in this conversation
-    const isDuplicate = this.isDuplicateInConversation(sentence, conversationId);
-    console.log('VOICE SERVICE: Is duplicate or similar:', isDuplicate);
-    
-    if (isDuplicate) {
-      console.log('VOICE SERVICE: Sentence already spoken recently or is similar, skipping:', sentence);
-      return;
-    }
-    
-    // Mark audio as not ready for this conversation if delayDisplay is true
-    if (delayDisplay) {
-      this.audioReadyForConversation.set(conversationId, false);
-      console.log(`VOICE SERVICE: Marked audio as not ready for conversation ${conversationId}`);
-    }
-    
-    // Add the sentence to the queue with its conversation ID
-    this.audioQueue.push({text: sentence, conversationId});
-    console.log('VOICE SERVICE: Added sentence to queue. New queue length:', this.audioQueue.length);
-    console.log('Audio queue length:', this.audioQueue.length);
-    
-    // Add to processed sentences for this conversation
-    const sentencesForConversation = this.processedSentences.get(conversationId) || new Set();
-    sentencesForConversation.add(sentence);
-    this.processedSentences.set(conversationId, sentencesForConversation);
-    
-    // Limit the size of the processed sentences set for this conversation
-    if (sentencesForConversation.size > 100) {
-      console.log(`Trimming processed sentences set for conversation ${conversationId} (size > 100)`);
+
+    // Add the sentence to the queue with a unique ID to prevent duplicates
+    const uniqueId = `${uuidv4()}`;
+    this.audioQueue.push({ id: uniqueId, text: sentence });
+    console.log(
+      "VOICE SERVICE: Added sentence to queue. New queue length:",
+      this.audioQueue.length
+    );
+
+    // Store the actual sentence in a Map using the unique ID
+    this.processedSentences.add(sentence);
+
+    // Limit the size of the processed sentences set
+    if (this.processedSentences.size > 100) {
+      console.log("Trimming processed sentences set (size > 100)");
       // Convert to array, remove oldest entries, convert back to set
-      const sentencesArray = Array.from(sentencesForConversation);
-      this.processedSentences.set(conversationId, new Set(sentencesArray.slice(-50))); // Keep only the 50 most recent
+      const sentencesArray = Array.from(this.processedSentences);
+      this.processedSentences = new Set(sentencesArray.slice(-50)); // Keep only the 50 most recent
     }
-    
+
     // If we're not already processing the queue, start processing
     if (!this.processingQueue) {
-      console.log('VOICE SERVICE: Starting queue processing');
+      console.log("VOICE SERVICE: Starting queue processing");
       this.processQueue();
     } else {
-      console.log('VOICE SERVICE: Queue is already being processed');
+      console.log("VOICE SERVICE: Queue is already being processed");
     }
   }
-  
+
   /**
-   * Process the audio queue with strict sequential processing
-   * This implementation ensures only one audio file plays at a time
+   * Process the audio queue
    */
   private async processQueue(): Promise<void> {
-    console.log('VOICE SERVICE: processQueue called, queue length:', this.audioQueue.length);
-    
-    // If queue is empty, stop processing
+    console.log(
+      "VOICE SERVICE: processQueue called, queue length:",
+      this.audioQueue.length
+    );
+
+    // If we're stopping, don't process the queue
+    if (this.isStopping) {
+      console.log("VOICE SERVICE: Currently stopping, not processing queue");
+      return;
+    }
+
     if (this.audioQueue.length === 0) {
-      console.log('VOICE SERVICE: Queue is empty, stopping processing');
+      console.log("VOICE SERVICE: Queue is empty, stopping processing");
       this.processingQueue = false;
       this.setStreamingStatus(false);
       return;
     }
-    
-    // Set processing flag to true
+
+    // Set processing flag to prevent multiple queue processing
+    if (this.processingQueue) {
+      console.log("VOICE SERVICE: Queue is already being processed, waiting");
+      return;
+    }
+
     this.processingQueue = true;
-    console.log('VOICE SERVICE: Set processingQueue flag to true');
-    
+    console.log("VOICE SERVICE: Set processingQueue flag to true");
+
     // Set streaming status to true as soon as we start processing the queue
     // This ensures the talking animation starts immediately
     this.setStreamingStatus(true);
-    console.log('VOICE SERVICE: Set isStreaming flag to true at start of queue processing');
-    
-    // Process each item in the queue sequentially
-    while (this.audioQueue.length > 0 && this.processingQueue) {
-      // Check if we're already processing audio
-      if (this.audioPlaybackLock) {
-        console.log('VOICE SERVICE: Audio playback lock is active, waiting...');
-        // Wait a short time and check again
-        await new Promise(resolve => setTimeout(resolve, 100));
-        continue;
-      }
-      
-      // Set the audio playback lock
-      this.audioPlaybackLock = true;
-      
-      // Get the next sentence from the queue
+    console.log(
+      "VOICE SERVICE: Set isStreaming flag to true at start of queue processing"
+    );
+
+    try {
+      // Make sure any previous audio is fully stopped before proceeding
+      await this.stopCurrentAudio();
+      console.log(
+        "VOICE SERVICE: Previous audio stopped, proceeding with queue"
+      );
+
+      // Get the next item from the queue
       const queueItem = this.audioQueue.shift();
       if (!queueItem) {
-        console.log('VOICE SERVICE: Empty queue item, skipping');
-        this.audioPlaybackLock = false;
-        continue;
+        console.log("VOICE SERVICE: No item in queue, stopping processing");
+        this.processingQueue = false;
+        this.setStreamingStatus(false);
+        return;
       }
-      
-      const { text: sentence, conversationId } = queueItem;
-      console.log(`Processing sentence from conversation ${conversationId}:`, sentence);
-      
-      try {
-        // Stop any currently playing audio
-        this.stopCurrentAudio();
-        console.log('Stopped current audio');
-        
-        // Create a promise for this audio playback
-        this.currentAudioPromise = this.playAudioForSentence(sentence, conversationId);
-        
-        // Wait for the audio to finish playing before processing the next item
-        await this.currentAudioPromise;
-        
-      } catch (error) {
-        console.error('VOICE SERVICE: Error in processQueue:', error);
-        console.log('VOICE SERVICE: Error type:', error instanceof Error ? error.name : typeof error);
-        console.log('VOICE SERVICE: Error message:', error instanceof Error ? error.message : String(error));
-      } finally {
-        // Release the audio playback lock
-        this.audioPlaybackLock = false;
+
+      const { id, text } = queueItem;
+      console.log("Processing sentence:", text, "with ID:", id);
+
+      // Use the ElevenLabs API directly
+      const voiceId = apiConfig.elevenLabs.defaultVoice;
+      const modelId =
+        apiConfig.elevenLabs.textToSpeech.fastModel || "eleven_monolingual_v1";
+
+      console.log("Voice ID:", voiceId);
+      console.log("Model ID:", modelId);
+
+      // Create a URL for the stream endpoint
+      const url = `${apiConfig.elevenLabs.baseUrl}/text-to-speech/${voiceId}`;
+      console.log("API URL:", url);
+      console.log(
+        "API Key (first 5 chars):",
+        apiConfig.elevenLabs.apiKey
+          ? apiConfig.elevenLabs.apiKey.substring(0, 5) + "..."
+          : "not set"
+      );
+
+      // Prepare request body
+      const requestBody = {
+        text: text,
+        model_id: modelId,
+        voice_settings: apiConfig.elevenLabs.voiceSettings || {
+          stability: 0.75,
+          similarity_boost: 0.5,
+        },
+      };
+      console.log("VOICE SERVICE: Request body:", JSON.stringify(requestBody));
+
+      // Make the API request
+      console.log("VOICE SERVICE: Making API request to ElevenLabs...");
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiConfig.elevenLabs.apiKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("VOICE SERVICE: API response status:", response.status);
+
+      if (!response.ok) {
+        console.error(`ElevenLabs API error: ${response.status}`);
+        throw new Error(`ElevenLabs API error: ${response.status}`);
       }
-    }
-    
-    // If queue is now empty, update status
-    if (this.audioQueue.length === 0) {
-      this.processingQueue = false;
-      this.setStreamingStatus(false);
-      console.log('VOICE SERVICE: Queue processing complete, all audio played');
-    }
-  }
-  
-  /**
-   * Play audio for a single sentence
-   * Returns a promise that resolves when the audio finishes playing
-   */
-  private async playAudioForSentence(sentence: string, conversationId: string): Promise<void> {
-    return new Promise<void>(async (resolve, reject) => {
-      try {
-        // Use the ElevenLabs API directly
-        const voiceId = apiConfig.elevenLabs.defaultVoice;
-        const modelId = apiConfig.elevenLabs.textToSpeech.fastModel || 'eleven_monolingual_v1';
-        
-        console.log('Voice ID:', voiceId);
-        console.log('Model ID:', modelId);
-        
-        // Create a URL for the stream endpoint
-        const url = `${apiConfig.elevenLabs.baseUrl}/text-to-speech/${voiceId}`;
-        console.log('API URL:', url);
-        console.log('API Key (first 5 chars):', apiConfig.elevenLabs.apiKey ? apiConfig.elevenLabs.apiKey.substring(0, 5) + '...' : 'not set');
-        
-        // Prepare request body
-        const requestBody = {
-          text: sentence,
-          model_id: modelId,
-          voice_settings: apiConfig.elevenLabs.voiceSettings || {
-            stability: 0.75,
-            similarity_boost: 0.5
-          }
-        };
-        console.log('VOICE SERVICE: Request body:', JSON.stringify(requestBody));
-        console.log('VOICE SERVICE: Using TARS voice settings:', apiConfig.elevenLabs.voiceSettings ? 'Yes' : 'No (fallback)');
-        console.log('VOICE SERVICE: ElevenLabs API Key available:', !!apiConfig.elevenLabs.apiKey);
-        
-        // Make the API request
-        console.log('VOICE SERVICE: Making API request to ElevenLabs...');
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': apiConfig.elevenLabs.apiKey,
-            'Content-Type': 'application/json',
-            'Accept': 'audio/mpeg'
-          },
-          body: JSON.stringify(requestBody)
-        });
-        
-        console.log('VOICE SERVICE: API response status:', response.status);
-        console.log('VOICE SERVICE: API response content-type:', response.headers.get('content-type'));
-        console.log('VOICE SERVICE: API response content-length:', response.headers.get('content-length'));
-        
-        if (!response.ok) {
-          console.error(`ElevenLabs API error: ${response.status}`);
-          throw new Error(`ElevenLabs API error: ${response.status}`);
-        }
-        
-        console.log('API request successful');
-        
-        // Get the response as a blob
-        const audioBlob = await response.blob();
-        console.log('Received audio blob, size:', audioBlob.size);
-        
-        // Mark audio as ready for this conversation if it exists in the map
-        if (this.audioReadyForConversation.has(conversationId)) {
-          this.audioReadyForConversation.set(conversationId, true);
-          console.log(`VOICE SERVICE: Marked audio as ready for conversation ${conversationId}`);
-          
-          // Dispatch audio ready event
-          const event = new CustomEvent(AUDIO_READY_EVENT, {
-            detail: { conversationId: conversationId, isReady: true }
-          });
-          document.dispatchEvent(event);
-        }
-        
-        // Create a URL for the blob
-        const audioUrl = URL.createObjectURL(audioBlob);
-        console.log('Created audio URL:', audioUrl);
-        
-        // Create a new audio element
-        const audioElement = new Audio(audioUrl);
-        this.audio = audioElement;
-        console.log('VOICE SERVICE: Created audio element');
-        
-        // Set up event listeners
+
+      console.log("API request successful");
+
+      // Get the response as a blob
+      const audioBlob = await response.blob();
+      console.log("Received audio blob, size:", audioBlob.size);
+
+      // Create a URL for the blob
+      const audioUrl = URL.createObjectURL(audioBlob);
+      console.log("Created audio URL:", audioUrl);
+
+      // Create a new audio element
+      const audioElement = new Audio(audioUrl);
+      this.audio = audioElement;
+      console.log("VOICE SERVICE: Created audio element");
+
+      // Set up event listeners
+      const audioEndedPromise = new Promise<void>((resolve) => {
         audioElement.onended = () => {
-          console.log('VOICE SERVICE: Audio playback ended');
+          console.log("VOICE SERVICE: Audio playback ended");
           URL.revokeObjectURL(audioUrl);
-          this.audio = null;
-          resolve(); // Resolve the promise when audio ends
+          resolve();
         };
-        
+
         audioElement.onerror = (error) => {
-          console.error('VOICE SERVICE: Error playing audio:', error);
+          console.error("VOICE SERVICE: Error playing audio:", error);
           URL.revokeObjectURL(audioUrl);
-          this.audio = null;
-          reject(error); // Reject the promise on error
+          resolve(); // Resolve anyway to continue queue processing
         };
-        
-        // Play the audio
-        console.log('VOICE SERVICE: Attempting to play audio...');
-        try {
-          await audioElement.play();
-          console.log('VOICE SERVICE: Audio playback started successfully');
-        } catch (playError) {
-          console.error('VOICE SERVICE: Error starting audio playback:', playError);
-          URL.revokeObjectURL(audioUrl);
-          this.audio = null;
-          reject(playError); // Reject the promise on play error
+      });
+
+      // Play the audio and store the promise
+      console.log("VOICE SERVICE: Attempting to play audio...");
+      try {
+        this.audioPlayPromise = audioElement.play();
+        await this.audioPlayPromise;
+        console.log("VOICE SERVICE: Audio playback started successfully");
+
+        // Wait for the audio to finish playing
+        await audioEndedPromise;
+
+        // Reset the play promise
+        this.audioPlayPromise = null;
+
+        // Only set streaming status to false if there are no more items in the queue
+        if (this.audioQueue.length === 0) {
+          this.setStreamingStatus(false);
+          console.log(
+            "VOICE SERVICE: Queue empty, setting isStreaming to false"
+          );
+        } else {
+          console.log(
+            "VOICE SERVICE: More items in queue, keeping isStreaming true"
+          );
         }
-      } catch (error) {
-        console.error('VOICE SERVICE: Error in playAudioForSentence:', error);
-        reject(error); // Reject the promise on any error
+
+        // Continue processing the queue
+        this.processingQueue = false;
+        this.processQueue();
+      } catch (playError) {
+        console.error(
+          "VOICE SERVICE: Error starting audio playback:",
+          playError
+        );
+        URL.revokeObjectURL(audioUrl);
+
+        // Reset the play promise
+        this.audioPlayPromise = null;
+
+        // Only set streaming status to false if there are no more items in the queue
+        if (this.audioQueue.length === 0) {
+          this.setStreamingStatus(false);
+          console.log(
+            "VOICE SERVICE: Queue empty, setting isStreaming to false after play error"
+          );
+        } else {
+          console.log(
+            "VOICE SERVICE: More items in queue, keeping isStreaming true despite play error"
+          );
+        }
+
+        // Continue processing the queue
+        this.processingQueue = false;
+        this.processQueue();
       }
-    });
+    } catch (error) {
+      console.error("VOICE SERVICE: Error in processQueue:", error);
+      console.log(
+        "VOICE SERVICE: Error type:",
+        error instanceof Error ? error.name : typeof error
+      );
+      console.log(
+        "VOICE SERVICE: Error message:",
+        error instanceof Error ? error.message : String(error)
+      );
+
+      // Reset the play promise
+      this.audioPlayPromise = null;
+
+      // Only set streaming status to false if there are no more items in the queue
+      if (this.audioQueue.length === 0) {
+        this.setStreamingStatus(false);
+        console.log(
+          "VOICE SERVICE: Queue empty, setting isStreaming to false due to catch block error"
+        );
+      } else {
+        console.log(
+          "VOICE SERVICE: More items in queue, keeping isStreaming true despite catch block error"
+        );
+      }
+
+      // Continue with the next item in the queue
+      console.log("VOICE SERVICE: Continuing to process queue after error");
+      this.processingQueue = false;
+      this.processQueue();
+    }
   }
-  
+
   /**
    * Stop the currently playing audio
    */
-  private stopCurrentAudio(): void {
+  private async stopCurrentAudio(): Promise<void> {
     if (this.audio) {
-      console.log('Stopping current audio');
-      this.audio.pause();
-      this.audio.src = '';
-      this.audio.onended = null; // Remove event listeners
-      this.audio.onerror = null;
-      this.audio = null;
+      console.log("Stopping current audio");
+
+      // Set stopping flag
+      this.isStopping = true;
+
+      try {
+        // If there's a play promise, wait for it to resolve before pausing
+        if (this.audioPlayPromise) {
+          try {
+            await this.audioPlayPromise;
+          } catch (error) {
+            console.log(
+              "VOICE SERVICE: Error waiting for play promise:",
+              error
+            );
+          }
+        }
+
+        // Now pause the audio
+        this.audio.pause();
+        this.audio.src = "";
+        this.audio = null;
+        this.audioPlayPromise = null;
+      } catch (error) {
+        console.error("VOICE SERVICE: Error stopping audio:", error);
+      } finally {
+        // Reset stopping flag
+        this.isStopping = false;
+      }
     }
-    
-    // Reset the current audio promise
-    this.currentAudioPromise = null;
+
+    // Return a resolved promise to ensure we can await this function
+    return Promise.resolve();
   }
-  
+
   /**
    * Stop all speech and clear the queue
    */
   public stopSpeaking(): void {
-    console.log('stopSpeaking called');
+    console.log("stopSpeaking called");
     this.stopCurrentAudio();
     this.audioQueue = [];
     this.setStreamingStatus(false);
     this.processingQueue = false;
-    this.audioPlaybackLock = false; // Release the audio playback lock
+
+    // Clear active conversations
+    this.activeConversations.clear();
+
+    // Clear recently played texts
+    this.recentlyPlayedTexts.clear();
   }
-  
+
   /**
    * Clear all speech, including queue and history
    */
   public clearAllSpeech(): void {
-    console.log('clearAllSpeech called');
+    console.log("clearAllSpeech called");
     this.stopSpeaking();
     this.processedSentences.clear();
-    this.audioReadyForConversation.clear();
   }
-  
+
   /**
    * Set the streaming status and dispatch an event
    */
@@ -342,108 +465,89 @@ export class VoiceService {
     // Update the internal state
     this.isStreaming = status;
     console.log(`VOICE SERVICE: Set isStreaming flag to ${status}`);
-    
+
     // Dispatch a custom event that components can listen for
     const event = new CustomEvent(SPEECH_STATUS_EVENT, {
-      detail: { isSpeaking: status }
+      detail: { isSpeaking: status },
     });
     document.dispatchEvent(event);
   }
-  
+
   /**
    * Check if speech is currently happening
    */
   public isSpeaking(): boolean {
     return this.isStreaming;
   }
-  
+
   /**
-   * Check if audio is ready for a specific conversation
-   * @param conversationId The conversation ID to check
-   * @returns True if audio is ready, false otherwise
+   * Check if a sentence is a duplicate or very similar to recently spoken sentences
    */
-  public isAudioReady(conversationId: string): boolean {
-    return this.audioReadyForConversation.get(conversationId) || false;
-  }
-  
-  /**
-   * Wait for audio to be ready for a specific conversation
-   * @param conversationId The conversation ID to wait for
-   * @param timeout Optional timeout in milliseconds
-   * @returns A promise that resolves when audio is ready or rejects on timeout
-   */
-  public waitForAudioReady(conversationId: string, timeout: number = 10000): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // If already ready, resolve immediately
-      if (this.isAudioReady(conversationId)) {
-        console.log(`VOICE SERVICE: Audio already ready for conversation ${conversationId}`);
-        resolve();
-        return;
-      }
-      
-      console.log(`VOICE SERVICE: Waiting for audio to be ready for conversation ${conversationId}`);
-      
-      // Set up timeout
-      const timeoutId = setTimeout(() => {
-        document.removeEventListener(AUDIO_READY_EVENT, handleAudioReady);
-        reject(new Error(`Timeout waiting for audio to be ready for conversation ${conversationId}`));
-      }, timeout);
-      
-      // Set up event listener
-      const handleAudioReady = (event: Event) => {
-        const customEvent = event as CustomEvent<{conversationId: string, isReady: boolean}>;
-        if (customEvent.detail.conversationId === conversationId && customEvent.detail.isReady) {
-          clearTimeout(timeoutId);
-          document.removeEventListener(AUDIO_READY_EVENT, handleAudioReady);
-          console.log(`VOICE SERVICE: Audio is now ready for conversation ${conversationId}`);
-          resolve();
-        }
-      };
-      
-      document.addEventListener(AUDIO_READY_EVENT, handleAudioReady);
-    });
-  }
-  
-  /**
-   * Check if a sentence is a duplicate within a specific conversation
-   */
-  private isDuplicateInConversation(sentence: string, conversationId: string): boolean {
-    console.log(`VOICE SERVICE: Checking if sentence is duplicate in conversation ${conversationId}:`, sentence);
-    
-    const sentencesForConversation = this.processedSentences.get(conversationId);
-    if (!sentencesForConversation) {
-      console.log(`VOICE SERVICE: No processed sentences for conversation ${conversationId}`);
-      return false;
-    }
-    
-    console.log(`VOICE SERVICE: Current processed sentences count for conversation ${conversationId}:`, sentencesForConversation.size);
-    
-    // Exact match check
-    if (sentencesForConversation.has(sentence)) {
-      console.log('VOICE SERVICE: Exact match found in processed sentences');
+  private isDuplicateOrSimilar(sentence: string): boolean {
+    console.log(
+      "VOICE SERVICE: Checking if sentence is duplicate or similar:",
+      sentence
+    );
+    console.log(
+      "VOICE SERVICE: Current processed sentences count:",
+      this.processedSentences.size
+    );
+
+    // Skip empty sentences
+    if (!sentence.trim()) {
       return true;
     }
-    
+
+    // Exact match check
+    if (this.processedSentences.has(sentence)) {
+      console.log("VOICE SERVICE: Exact match found in processed sentences");
+      return true;
+    }
+
     // Normalize the sentence for comparison (lowercase, remove extra spaces)
-    const normalizedSentence = sentence.toLowerCase().trim().replace(/\s+/g, ' ');
-    console.log('VOICE SERVICE: Normalized sentence:', normalizedSentence);
-    
+    const normalizedSentence = sentence
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ");
+    console.log("VOICE SERVICE: Normalized sentence:", normalizedSentence);
+
     // Check for normalized exact matches
-    const processedSentencesArray = Array.from(sentencesForConversation);
+    const processedSentencesArray = Array.from(this.processedSentences);
     for (const processedSentence of processedSentencesArray) {
-      const normalizedProcessed = processedSentence.toLowerCase().trim().replace(/\s+/g, ' ');
-      
+      const normalizedProcessed = processedSentence
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+
       // If exact match after normalization
       if (normalizedSentence === normalizedProcessed) {
-        console.log('VOICE SERVICE: Normalized exact match found:', normalizedProcessed);
+        console.log(
+          "VOICE SERVICE: Normalized exact match found:",
+          normalizedProcessed
+        );
         return true;
       }
-      
-      // We're being less strict about similarity within the same conversation
-      // Only check for exact duplicates, not substrings
+
+      // Check if one is a substring of the other (with high overlap)
+      if (normalizedSentence.length > 10 && normalizedProcessed.length > 10) {
+        if (normalizedSentence.includes(normalizedProcessed)) {
+          console.log(
+            "VOICE SERVICE: New sentence contains processed sentence:",
+            normalizedProcessed
+          );
+          return true;
+        }
+        if (normalizedProcessed.includes(normalizedSentence)) {
+          console.log(
+            "VOICE SERVICE: Processed sentence contains new sentence:",
+            normalizedSentence
+          );
+          return true;
+        }
+      }
     }
-    
-    console.log('VOICE SERVICE: No duplicate found in this conversation');
+
+    console.log("VOICE SERVICE: No duplicate or similar sentence found");
     return false;
   }
 }
