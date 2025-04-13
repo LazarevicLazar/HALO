@@ -315,23 +315,60 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
   // Scan for nearby Bluetooth devices
   const scanForDevices = async () => {
     if (!isBluetoothSupported) {
+      console.log("Bluetooth not supported on this device");
       triggerCompanionResponse("bluetooth_not_supported");
       return;
     }
 
     setIsScanning(true);
+    console.log("Starting Bluetooth device scan...");
 
     try {
-      await bluetoothService.scanForDevices();
-      await bluetoothService.connect();
+      // First attempt to scan for devices
+      try {
+        console.log("Attempting to scan for Bluetooth devices");
+        await bluetoothService.scanForDevices();
+        
+        // If we get here, a device was selected
+        console.log("Device selected, attempting to connect");
+        await bluetoothService.connect();
 
-      setIsConnected(true);
-      setConnectedDeviceName(bluetoothService.getConnectedDeviceName());
+        setIsConnected(true);
+        setConnectedDeviceName(bluetoothService.getConnectedDeviceName());
+        console.log("Connected to device:", bluetoothService.getConnectedDeviceName());
 
-      triggerCompanionResponse("bluetooth_connected");
+        triggerCompanionResponse("bluetooth_connected");
+      } catch (scanError) {
+        // Check if the error is because the user canceled the selection
+        if (scanError instanceof Error &&
+            scanError.message.includes("User cancelled")) {
+          console.log("User cancelled device selection");
+          triggerCompanionResponse("bluetooth_scan_cancelled");
+        } else {
+          // Rethrow for the outer catch block
+          throw scanError;
+        }
+      }
     } catch (error) {
       console.error("Error scanning for devices:", error);
-      triggerCompanionResponse("bluetooth_scan_failed");
+      
+      // Provide more specific error messages based on the error
+      if (error instanceof Error) {
+        if (error.message.includes("Bluetooth adapter not available")) {
+          triggerCompanionResponse("bluetooth_not_available");
+        } else if (error.message.includes("User cancelled")) {
+          triggerCompanionResponse("bluetooth_scan_cancelled");
+        } else if (error.message.includes("No devices found") ||
+                  error.message.includes("No device selected")) {
+          triggerCompanionResponse("bluetooth_no_devices");
+        } else if (error.message.includes("GATT")) {
+          triggerCompanionResponse("bluetooth_connection_failed");
+        } else {
+          triggerCompanionResponse("bluetooth_scan_failed");
+        }
+      } else {
+        triggerCompanionResponse("bluetooth_scan_failed");
+      }
     } finally {
       setIsScanning(false);
     }
@@ -339,21 +376,41 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
 
   // Connect to a specific Bluetooth device
   const connectToDevice = async (deviceId: string) => {
+    console.log("Attempting to connect to device with ID:", deviceId);
     setIsScanning(true);
 
     try {
       // In a real implementation, we would need to store device references
       // For now, we'll just scan again
+      console.log("Scanning for devices again to find the target device");
       await bluetoothService.scanForDevices();
+      
+      console.log("Attempting to connect to selected device");
       await bluetoothService.connect();
 
       setIsConnected(true);
-      setConnectedDeviceName(bluetoothService.getConnectedDeviceName());
+      const deviceName = bluetoothService.getConnectedDeviceName();
+      setConnectedDeviceName(deviceName);
+      console.log("Connected to device:", deviceName);
 
       triggerCompanionResponse("bluetooth_connected");
     } catch (error) {
       console.error("Error connecting to device:", error);
-      triggerCompanionResponse("bluetooth_connection_failed");
+      
+      // Provide more specific error messages based on the error
+      if (error instanceof Error) {
+        if (error.message.includes("User cancelled")) {
+          triggerCompanionResponse("bluetooth_connection_cancelled");
+        } else if (error.message.includes("No device selected")) {
+          triggerCompanionResponse("bluetooth_no_device_selected");
+        } else if (error.message.includes("GATT")) {
+          triggerCompanionResponse("bluetooth_gatt_error");
+        } else {
+          triggerCompanionResponse("bluetooth_connection_failed");
+        }
+      } else {
+        triggerCompanionResponse("bluetooth_connection_failed");
+      }
     } finally {
       setIsScanning(false);
     }
@@ -361,38 +418,69 @@ export const BarterProvider: React.FC<BarterProviderProps> = ({ children }) => {
 
   // Disconnect from the current Bluetooth device
   const disconnectDevice = () => {
-    bluetoothService.disconnect();
+    console.log("Disconnecting from Bluetooth device");
+    
+    try {
+      bluetoothService.disconnect();
+      console.log("Bluetooth service disconnect called");
+    } catch (error) {
+      console.error("Error during disconnect:", error);
+    }
+    
+    // Always reset state even if disconnect fails
     setIsConnected(false);
     setConnectedDeviceName(null);
     setIncomingTradeRequest(null);
     setIncomingTradeOffer(null);
     setCurrentTradeId(null);
     clearOffers();
+    
+    console.log("Bluetooth device disconnected and state reset");
   };
 
   // Send a trade request to the connected device
   const sendTradeRequest = async () => {
+    console.log("Attempting to send trade request");
+    
     if (!isConnected) {
+      console.log("Cannot send trade request: not connected to any device");
       triggerCompanionResponse("bluetooth_not_connected");
       return;
     }
 
     const requestId = Date.now().toString();
+    console.log("Generated trade request ID:", requestId);
     setCurrentTradeId(requestId);
 
     try {
-      await bluetoothService.sendMessage({
+      const message = {
         type: MessageType.TRADE_REQUEST,
         payload: {
           requestId,
           fromName: "You", // In a real app, this would be the user's name
         },
-      });
+      };
+      
+      console.log("Sending trade request message:", message);
+      await bluetoothService.sendMessage(message);
+      console.log("Trade request sent successfully");
 
       triggerCompanionResponse("bluetooth_trade_request_sent");
     } catch (error) {
       console.error("Error sending trade request:", error);
-      triggerCompanionResponse("bluetooth_trade_request_failed");
+      
+      // Check if the error is related to disconnection
+      if (error instanceof Error &&
+          (error.message.includes("disconnected") ||
+           error.message.includes("Not connected") ||
+           error.message.includes("GATT"))) {
+        console.log("Device appears to be disconnected");
+        setIsConnected(false);
+        setConnectedDeviceName(null);
+        triggerCompanionResponse("bluetooth_device_disconnected");
+      } else {
+        triggerCompanionResponse("bluetooth_trade_request_failed");
+      }
     }
   };
 
