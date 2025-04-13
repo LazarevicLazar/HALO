@@ -113,6 +113,10 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
   
   // Send a message and get a response
   const sendMessage = useCallback(async (message: string) => {
+    // Generate a single conversation ID for the entire response
+    const responseConversationId = `conv_${Date.now()}`;
+    console.log('Generated conversation ID for entire response:', responseConversationId);
+    
     // Add user message
     const userMessage: Message = {
       role: 'user',
@@ -165,15 +169,15 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         },
         // Handle each complete sentence for voice with WebSocket-based streaming
         isVoiceEnabled ? (sentence) => {
-          // Generate a unique conversation ID based on timestamp
-          const conversationId = `conv_${Date.now()}`;
+          // Use the same conversation ID for all sentences in this response
+          // This ensures they're treated as part of the same conversation
           
           // Use the optimized WebSocket-based streaming for real-time speech
           if (sentence.trim().length > 0) {
-            console.log('Streaming sentence with conversation ID:', conversationId);
+            console.log('Streaming sentence with conversation ID:', responseConversationId);
             // Process the sentence for optimal TARS voice delivery
             const processedSentence = processTARSResponse(sentence);
-            voiceService.streamSentence(processedSentence, conversationId);
+            voiceService.streamSentence(processedSentence, responseConversationId);
           }
         } : undefined
       );
@@ -286,15 +290,15 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         },
         // Handle each complete sentence for voice with WebSocket-based streaming
         isVoiceEnabled ? (sentence) => {
-          // Generate a unique conversation ID based on timestamp
-          const conversationId = `conv_${Date.now()}_event_${eventType}`;
+          // Generate a single conversation ID for the entire event response
+          const eventConversationId = `conv_${Date.now()}_event_${eventType}`;
           
           // Use the optimized WebSocket-based streaming for real-time speech
           if (sentence.trim().length > 0) {
-            console.log('Streaming event sentence with conversation ID:', conversationId);
+            console.log('Streaming event sentence with conversation ID:', eventConversationId);
             // Process the sentence for optimal TARS voice delivery
             const processedSentence = processTARSResponse(sentence);
-            voiceService.streamSentence(processedSentence, conversationId);
+            voiceService.streamSentence(processedSentence, eventConversationId);
           }
         } : undefined
       );
@@ -409,12 +413,12 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
         },
         // Handle each complete sentence for voice with WebSocket-based streaming
         isVoiceEnabled ? (sentence) => {
-          // Generate a unique conversation ID based on timestamp
-          const conversationId = `conv_${Date.now()}_image`;
+          // Generate a single conversation ID for the entire image analysis
+          const imageConversationId = `conv_${Date.now()}_image`;
           
           // Use the optimized WebSocket-based streaming for real-time speech
           if (sentence.trim().length > 0) {
-            console.log('IMAGE ANALYSIS: Streaming sentence with conversation ID:', conversationId);
+            console.log('IMAGE ANALYSIS: Streaming sentence with conversation ID:', imageConversationId);
             console.log('IMAGE ANALYSIS: Sentence content:', sentence);
             console.log('IMAGE ANALYSIS: Voice enabled:', isVoiceEnabled);
             
@@ -423,7 +427,7 @@ export const CompanionProvider: React.FC<{children: ReactNode}> = ({ children })
             console.log('IMAGE ANALYSIS: Processed sentence:', processedSentence);
             
             // Stream the sentence
-            voiceService.streamSentence(processedSentence, conversationId);
+            voiceService.streamSentence(processedSentence, imageConversationId);
           }
         } : undefined
       );
