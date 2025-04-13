@@ -20,7 +20,7 @@
 .env.production.local
 
 # API configuration with real keys
-/src/config/apiConfig.ts
+#/src/config/apiConfig.ts
 
 npm-debug.log*
 yarn-debug.log*
